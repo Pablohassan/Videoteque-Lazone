@@ -441,4 +441,4 @@ Pour toute question ou problème :
 
 ---
 
-_Dernière mise à jour : ${new Date().toLocaleDateString('fr-FR')}_
+_Dernière mise à jour : 2024_

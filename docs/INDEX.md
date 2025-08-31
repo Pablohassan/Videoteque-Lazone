@@ -6,7 +6,7 @@ Cette documentation complète vous guide à travers tous les aspects du projet *
 
 ## 📖 Table des Matières
 
-### 🚀 **Démarrage Rapide**
+### 🚀 **Démarrage et Installation**
 
 - **[QUICKSTART.md](./QUICKSTART.md)** - Guide de démarrage en 5 minutes
 - **[README.md](./README.md)** - Documentation complète du projet
@@ -14,18 +14,18 @@ Cette documentation complète vous guide à travers tous les aspects du projet *
 ### 🏗️ **Architecture et Conception**
 
 - **[ARCHITECTURE.md](./ARCHITECTURE.md)** - Architecture détaillée du projet
-- **[COMPONENTS.md](./COMPONENTS.md)** - Guide des composants (à créer)
-- **[API.md](./API.md)** - Documentation de l'API (à créer)
+- **[API.md](./API.md)** - Documentation complète de l'API REST
+- **[REACT_19_MIGRATION.md](./REACT_19_MIGRATION.md)** - Migration vers React 19
 
 ### 🔧 **Configuration et Déploiement**
 
-- **[DEPLOYMENT.md](./DEPLOYMENT.md)** - Guide de déploiement (à créer)
-- **[ENVIRONMENT.md](./ENVIRONMENT.md)** - Configuration des environnements (à créer)
+- **[DEPLOYMENT.md](./DEPLOYMENT.md)** - Guide de déploiement en production
+- **[ADMIN_AUTHENTICATION.md](./ADMIN_AUTHENTICATION.md)** - Système d'administration
 
 ### 🧪 **Tests et Qualité**
 
-- **[TESTING.md](./TESTING.md)** - Guide des tests (à créer)
-- **[CONTRIBUTING.md](./CONTRIBUTING.md)** - Guide de contribution (à créer)
+- **[TESTING.md](./TESTING.md)** - Guide des tests (planifié)
+- **[CONTRIBUTING.md](./CONTRIBUTING.md)** - Guide de contribution
 
 ## 🎯 **Par Où Commencer ?**
 
@@ -34,18 +34,19 @@ Cette documentation complète vous guide à travers tous les aspects du projet *
 1. **Lire** [QUICKSTART.md](./QUICKSTART.md) pour installer le projet
 2. **Consulter** [README.md](./README.md) pour comprendre l'ensemble
 3. **Étudier** [ARCHITECTURE.md](./ARCHITECTURE.md) pour l'architecture
+4. **Explorer** [API.md](./API.md) pour comprendre les endpoints
 
 ### 🔍 **Développeur Expérimenté**
 
 1. **Consulter** [ARCHITECTURE.md](./ARCHITECTURE.md) pour l'architecture
-2. **Lire** [API.md](./API.md) pour les endpoints
-3. **Étudier** [COMPONENTS.md](./COMPONENTS.md) pour les composants
+2. **Lire** [API.md](./API.md) pour la documentation complète des endpoints
+3. **Étudier** [ADMIN_AUTHENTICATION.md](./ADMIN_AUTHENTICATION.md) pour l'administration
 
 ### 🚀 **Déploiement en Production**
 
-1. **Lire** [DEPLOYMENT.md](./DEPLOYMENT.md) pour le déploiement
-2. **Configurer** [ENVIRONMENT.md](./ENVIRONMENT.md) pour la production
-3. **Tester** [TESTING.md](./TESTING.md) pour la qualité
+1. **Lire** [DEPLOYMENT.md](./DEPLOYMENT.md) pour le guide complet de déploiement
+2. **Suivre** [QUICKSTART.md](./QUICKSTART.md) pour la configuration de base
+3. **Consulter** [ADMIN_AUTHENTICATION.md](./ADMIN_AUTHENTICATION.md) pour l'administration
 
 ## 📋 **Résumé du Projet**
 
@@ -54,16 +55,17 @@ Cette documentation complète vous guide à travers tous les aspects du projet *
 Une plateforme moderne de gestion de catalogue de films avec :
 
 - **Scanner automatique** de dossiers de films
-- **Intégration TMDB** pour les métadonnées
-- **Système de demandes** de films
+- **Intégration TMDB** pour les métadonnées complètes
+- **Système de demandes** de films personnalisé
 - **Interface moderne** avec React et Tailwind CSS
-- **Backend robuste** avec Node.js et PostgreSQL
+- **Backend robuste** avec Node.js et **PostgreSQL (local ou Supabase)**
+- **Système d'administration** complet avec gestion des utilisateurs
 
 ### 🏗️ **Architecture Technique**
 
-- **Frontend** : React 18 + TypeScript + Vite + Tailwind CSS
-- **Backend** : Node.js + Express + Prisma + PostgreSQL
-- **Services** : TMDB API, Supabase, JWT Authentication
+- **Frontend** : React 19 + TypeScript + Vite + Tailwind CSS + React Router v7
+- **Backend** : Node.js + Express + Prisma + **PostgreSQL (local ou Supabase)**
+- **Services** : TMDB API, **Supabase (optionnel)**, JWT Authentication
 - **Outils** : ESLint, Prettier, Prisma Studio
 
 ### 🚀 **Fonctionnalités Clés**
@@ -141,10 +143,10 @@ JWT_EXPIRES_IN="7d"                # Expiration JWT
 
 ### 📖 **Documentation du Projet**
 
+- **README principal** : [../README.md](../README.md) - Point d'entrée principal
 - **Schéma de base** : [../prisma/schema.prisma](../prisma/schema.prisma)
 - **Configuration** : [../env.example](../env.example)
-- **Package.json** : [../package.json](../package.json)
-- **README principal** : [../README.md](../README.md)
+- **Scripts disponibles** : [../package.json](../package.json)
 
 ## 🤝 **Contribuer à la Documentation**
 
@@ -185,7 +187,7 @@ JWT_EXPIRES_IN="7d"                # Expiration JWT
 
 ## 📅 **Mise à Jour de la Documentation**
 
-- **Dernière mise à jour** : ${new Date().toLocaleDateString('fr-FR')}
+- **Dernière mise à jour** : Décembre 2024
 - **Version du projet** : 1.0.0
 - **Mainteneur** : Équipe de développement Cine-Scan-Connect
 

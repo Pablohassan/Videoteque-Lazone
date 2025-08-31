@@ -28,21 +28,54 @@ npm install
 
 ### 3. Configuration de la Base de Données
 
+#### Option A : PostgreSQL Local
 ```bash
-# Créer la base PostgreSQL
-createdb cine_scan_connect
+# Installer PostgreSQL si nécessaire
+brew install postgresql  # macOS
+# OU
+sudo apt install postgresql postgresql-contrib  # Ubuntu
 
-# Configurer les variables d'environnement
+# Créer la base de données
+createdb cine_scan_connect
+```
+
+#### Option B : Supabase (Recommandé)
+```bash
+# 1. Créer un compte sur https://supabase.com
+# 2. Créer un nouveau projet
+# 3. Récupérer l'URL de connexion PostgreSQL
+```
+
+#### Configuration commune
+```bash
+# Copier et éditer le fichier d'environnement
 cp env.example .env
 # Éditer .env avec vos informations de base de données
 ```
 
 ### 4. Configuration des Variables d'Environnement
 
+#### Pour PostgreSQL Local
 ```bash
-# .env - Configuration minimale requise
-DATABASE_URL="postgresql://user:password@localhost:5432/cine_scan_connect"
-DIRECT_URL="postgresql://user:password@localhost:5433/cine_scan_connect"
+# .env - Configuration PostgreSQL local
+DATABASE_URL="postgresql://username:password@localhost:5432/cine_scan_connect"
+DIRECT_URL="postgresql://username:password@localhost:5432/cine_scan_connect"
+VITE_TMDB_API_KEY="your-tmdb-api-key"
+MOVIES_FOLDER_PATH="/path/to/your/movies"
+```
+
+#### Pour Supabase
+```bash
+# .env - Configuration Supabase
+DATABASE_URL="postgresql://postgres:[YOUR-PASSWORD]@db.[YOUR-PROJECT-REF].supabase.co:5432/postgres"
+DIRECT_URL="postgresql://postgres:[YOUR-PASSWORD]@db.[YOUR-PROJECT-REF].supabase.co:5432/postgres"
+
+# Variables Supabase (optionnelles)
+SUPABASE_URL="https://[YOUR-PROJECT-REF].supabase.co"
+SUPABASE_ANON_KEY="your-anon-key"
+SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"
+
+# Autres variables
 VITE_TMDB_API_KEY="your-tmdb-api-key"
 MOVIES_FOLDER_PATH="/path/to/your/movies"
 ```
@@ -100,6 +133,7 @@ npm run index:movies
 
 ### Erreur de Connexion Base de Données
 
+#### Pour PostgreSQL Local
 ```bash
 # Vérifier que PostgreSQL est démarré
 brew services start postgresql  # macOS
@@ -107,6 +141,20 @@ sudo systemctl start postgresql # Linux
 
 # Vérifier la connexion
 psql -h localhost -U your_user -d cine_scan_connect
+```
+
+#### Pour Supabase
+```bash
+# Vérifier les variables d'environnement
+cat .env | grep DATABASE_URL
+
+# Tester la connexion avec Prisma
+npm run db:generate
+
+# Si ça ne fonctionne pas, vérifier :
+# 1. L'URL de connexion Supabase
+# 2. Le mot de passe
+# 3. Les permissions du projet Supabase
 ```
 
 ### Erreur de Port Déjà Utilisé
