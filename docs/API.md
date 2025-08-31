@@ -1,6 +1,6 @@
-# 🔌 Documentation API - Cine-Scan-Connect
+# 🔌 Documentation API - Videotek
 
-> **API REST complète** pour Cine-Scan-Connect avec authentification JWT et gestion des rôles.
+> **API REST complète** pour Videotek avec authentification JWT et gestion des rôles.
 
 ## 📋 Vue d'Ensemble
 
@@ -640,4 +640,4 @@ curl -H "Authorization: Bearer YOUR_TOKEN" \
 
 ---
 
-_API Cine-Scan-Connect v1.0.0 - Documentation complète_
+_API Videotek v1.0.0 - Documentation complète_

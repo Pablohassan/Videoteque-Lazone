@@ -1,4 +1,4 @@
-# 🚀 Guide de Déploiement - Cine-Scan-Connect
+# 🚀 Guide de Déploiement - Videotek
 
 > **Déploiement complet** en production avec Docker, serveurs cloud et optimisation des performances.
 
@@ -167,6 +167,7 @@ pm2 save
 #### Configuration Base de Données
 
 ##### Option A : RDS PostgreSQL
+
 ```bash
 # Créer une instance RDS PostgreSQL
 aws rds create-db-instance \
@@ -181,6 +182,7 @@ aws rds create-db-instance \
 ```
 
 ##### Option B : Supabase (Recommandé)
+
 ```bash
 # 1. Créer un projet Supabase : https://supabase.com
 # 2. Récupérer les credentials PostgreSQL

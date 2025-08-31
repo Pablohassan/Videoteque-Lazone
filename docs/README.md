@@ -1,4 +1,4 @@
-# 📽️ Cine-Scan-Connect - Documentation Complète
+# 📽️ Videotek - Documentation Complète
 
 ## 🎯 Vue d'ensemble
 

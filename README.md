@@ -1,4 +1,4 @@
-# 🎬 Cine-Scan-Connect
+# 🎬 Videotek
 
 [![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/Pablohassan/cine-scan-connect)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)

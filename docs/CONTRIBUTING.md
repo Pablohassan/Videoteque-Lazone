@@ -1,10 +1,10 @@
-# 🤝 Guide de Contribution - Cine-Scan-Connect
+# 🤝 Guide de Contribution - Videotek
 
-> **Contribuer au développement** de Cine-Scan-Connect : bonnes pratiques, workflow et standards de code.
+> **Contribuer au développement** de Videotek : bonnes pratiques, workflow et standards de code.
 
 ## 📋 Vue d'Ensemble
 
-Nous accueillons toutes les contributions ! Que vous soyez développeur expérimenté ou débutant, votre aide est précieuse pour améliorer Cine-Scan-Connect.
+Nous accueillons toutes les contributions ! Que vous soyez développeur expérimenté ou débutant, votre aide est précieuse pour améliorer Videotek.
 
 ### 🎯 Types de Contributions
 

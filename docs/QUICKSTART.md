@@ -1,4 +1,4 @@
-# 🚀 Guide de Démarrage Rapide - Cine-Scan-Connect
+# 🚀 Guide de Démarrage Rapide - Videotek
 
 ## ⚡ Démarrage en 5 minutes
 
@@ -29,6 +29,7 @@ npm install
 ### 3. Configuration de la Base de Données
 
 #### Option A : PostgreSQL Local
+
 ```bash
 # Installer PostgreSQL si nécessaire
 brew install postgresql  # macOS
@@ -40,6 +41,7 @@ createdb cine_scan_connect
 ```
 
 #### Option B : Supabase (Recommandé)
+
 ```bash
 # 1. Créer un compte sur https://supabase.com
 # 2. Créer un nouveau projet
@@ -47,6 +49,7 @@ createdb cine_scan_connect
 ```
 
 #### Configuration commune
+
 ```bash
 # Copier et éditer le fichier d'environnement
 cp env.example .env
@@ -56,6 +59,7 @@ cp env.example .env
 ### 4. Configuration des Variables d'Environnement
 
 #### Pour PostgreSQL Local
+
 ```bash
 # .env - Configuration PostgreSQL local
 DATABASE_URL="postgresql://username:password@localhost:5432/cine_scan_connect"
@@ -65,6 +69,7 @@ MOVIES_FOLDER_PATH="/path/to/your/movies"
 ```
 
 #### Pour Supabase
+
 ```bash
 # .env - Configuration Supabase
 DATABASE_URL="postgresql://postgres:[YOUR-PASSWORD]@db.[YOUR-PROJECT-REF].supabase.co:5432/postgres"
@@ -134,6 +139,7 @@ npm run index:movies
 ### Erreur de Connexion Base de Données
 
 #### Pour PostgreSQL Local
+
 ```bash
 # Vérifier que PostgreSQL est démarré
 brew services start postgresql  # macOS
@@ -144,6 +150,7 @@ psql -h localhost -U your_user -d cine_scan_connect
 ```
 
 #### Pour Supabase
+
 ```bash
 # Vérifier les variables d'environnement
 cat .env | grep DATABASE_URL
@@ -248,4 +255,4 @@ curl http://localhost:3001/api/movies
 
 ---
 
-_Guide créé pour Cine-Scan-Connect v1.0.0_
+_Guide créé pour Videotek v1.0.0_
