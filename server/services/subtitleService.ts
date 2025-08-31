@@ -1,5 +1,6 @@
-import fs from "fs-extra";
-import path from "path";
+import * as fs from "fs-extra";
+import * as path from "path";
+import type { Movie } from "@prisma/client";
 
 export class SubtitleService {
   private subtitleExtensions = [".srt", ".sub", ".vtt", ".ass", ".ssa"];
@@ -22,7 +23,7 @@ export class SubtitleService {
    */
   private parseSrtToVtt(srtContent: string): string {
     // Supprimer les BOM et normaliser les retours à la ligne
-    let content = srtContent
+    const content = srtContent
       .replace(/^\uFEFF/, "")
       .replace(/\r\n/g, "\n")
       .replace(/\r/g, "\n");
@@ -87,7 +88,13 @@ export class SubtitleService {
       const movieDir = path.dirname(moviePath);
       const files = await fs.readdir(movieDir);
 
-      const subtitleFiles = [];
+      const subtitleFiles: Array<{
+        path: string;
+        filename: string;
+        language: string;
+        size: number;
+        format: string;
+      }> = [];
 
       for (const file of files) {
         const filePath = path.join(movieDir, file);

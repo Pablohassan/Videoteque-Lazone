@@ -1,73 +1,149 @@
-import { Request } from "express";
+// ========================================================================
+// TYPES DE L'APPLICATION - POINT D'ENTRÉE CENTRAL
+//
+// Ce fichier est le point d'entrée UNIQUE pour tous les types de l'application.
+// Il réexporte tous les types depuis leurs fichiers spécialisés pour faciliter les imports.
+//
+// ARCHITECTURE :
+// ✅ Chaque domaine a son propre fichier (auth.ts, admin.ts, movies.ts, etc.)
+// ✅ Les types communs sont dans common.ts
+// ✅ index.ts ne fait que réexporter pour faciliter les imports
+//
+// AVANTAGES :
+// 🔍 Maintenabilité : types organisés par domaine
+// 🚀 Performance : fichiers spécialisés moins volumineux
+// 👥 Collaboration : travail simultané sur différents domaines
+// 📈 Évolutivité : ajout de nouveaux domaines facile
+//
+// ========================================================================
 
-export interface AuthRequest extends Request {
-  user?: {
-    id: number;
-    email: string;
-    name: string;
-  };
-}
+// ========================================================================
+// RÉEXPORT DES TYPES POUR FACILITER LES IMPORTS
+// ========================================================================
 
-export interface LoginRequest {
-  email: string;
-  password: string;
-}
+// Types LoginRequest et RegisterRequest sont dans schemas/auth.ts
+// Utiliser: import type { LoginRequest, RegisterRequest } from "../schemas/auth";
 
-export interface RegisterRequest {
-  email: string;
-  name: string;
-  password: string;
-}
+// Réexport des types communs
+export type {
+  ApiResponse,
+  PaginatedResponse,
+  UserStats,
+  TMDBMovie,
+  TMDBGenre,
+  MovieScanResult,
+  ErrorDetails,
+  Metadata,
+  FileData,
+  StatsData,
+  AdminActionData,
+  ID,
+  Timestamp,
+  StatusWithMetadata,
+} from "./common.js";
 
-export interface CreateReviewRequest {
-  rating: number;
-  comment: string;
-}
+// Réexport des types d'authentification
+export type {
+  AuthRequest,
+  PassportRequest,
+  AuthUser,
+  AuthHandler,
+  AuthUserData,
+  SessionData,
+  JWTPayload,
+  AuthResponse,
+  LoginResponse,
+  RegisterResponse,
+  AuthError,
+} from "./auth.js";
 
-export interface MovieRequestPayload {
-  title: string;
-  description?: string;
-}
+// Réexport des types de films
+export type {
+  MovieUser,
+  MovieHandler,
+  MovieData,
+  MovieGenreData,
+  MovieActorData,
+  MovieResponse,
+  MovieReviewData,
+  MovieFilters,
+  MovieStats,
+  SubtitleData,
+  SubtitleScanResult,
+} from "./movies.js";
 
-export interface TMDBMovie {
-  id: number;
-  title: string;
-  overview: string;
-  poster_path: string;
-  release_date: string;
-  runtime: number;
-  genre_ids: number[];
-  videos?: {
-    results: Array<{
-      key: string;
-      site: string;
-      type: string;
-    }>;
-  };
-  credits?: {
-    cast: Array<{
-      name: string;
-      character: string;
-    }>;
-  };
-}
+// Réexport des types Prisma les plus utilisés
+export type {
+  User,
+  Movie,
+  Review,
+  MovieRequest,
+  AdminAction,
+  Genre,
+  Actor,
+  MovieGenre,
+  MovieActor,
+} from "@prisma/client";
 
-export interface TMDBGenre {
-  id: number;
-  name: string;
-}
+// Réexport des types Zod des schémas
+export type {
+  // Auth
+  LoginRequest,
+  RegisterRequest,
+  ChangePasswordRequest,
 
-export interface MovieScanResult {
-  filename: string;
-  title: string;
-  year?: number;
-  success: boolean;
-  error?: string;
-}
+  // Admin
+  CreateUserRequest,
+  UpdateUserRequest,
+  UserFilters,
+  PaginationQuery,
 
-export interface ApiResponse<T = unknown> {
-  success: boolean;
-  data?: T;
-  message?: string;
-  error?: string;
-}
+  // Movies
+  MovieIdParams,
+  MoviesQuery,
+  MovieRequestPayload,
+
+  // Reviews
+  CreateReviewRequest,
+  UpdateReviewRequest,
+  ReviewIdParams,
+  ReviewsQuery,
+  CreateReviewWithMovieRequest,
+} from "../schemas";
+
+// Types spécifiques à l'application (définis ci-dessus)
+export type {
+  AdminRequest,
+  AdminPassportRequest,
+  AdminUser,
+  AdminHandler,
+  AdminUserResponse,
+  AdminStatsResponse,
+  AdminActionResponse,
+  AdminUserUpdateData,
+  AdminUserCreateData,
+  AdminUserFilters,
+  AdminLogEntry,
+} from "./admin.js";
+
+// Types d'authentification sont déjà exportés plus haut dans ce fichier
+
+// Types de reviews
+export type {
+  ReviewRequest,
+  ReviewPassportRequest,
+  ReviewUser,
+  ReviewHandler,
+  ReviewData,
+  ReviewUpdateData,
+  ReviewFilters,
+  ReviewResponse,
+} from "./reviews.js";
+
+// Types de demandes de films
+export type {
+  MovieRequestRequest,
+  MovieRequestPassportRequest,
+  MovieRequestUser,
+  MovieRequestHandler,
+} from "./movieRequests.js";

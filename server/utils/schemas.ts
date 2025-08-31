@@ -1,4 +1,15 @@
+// DEPRECATED: This file is being phased out.
+// All schemas have been moved to the dedicated schemas/ directory.
+// Please import from:
+// - server/schemas/auth.ts for authentication schemas
+// - server/schemas/movies.ts for movie-related schemas
+// - server/schemas/reviews.ts for review schemas
+// - server/schemas/admin.ts for admin schemas
+
 import { z } from "zod";
+
+// Legacy schemas - DO NOT USE for new code
+// These will be removed once all routes are migrated
 
 export const registerSchema = z.object({
   email: z.string().email("Email invalide"),

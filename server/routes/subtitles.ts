@@ -1,6 +1,6 @@
 import express from "express";
 import { SubtitleService } from "../services/subtitleService.js";
-import { optionalAuth } from "../middleware/auth.js";
+import { optionalAuth } from "../middleware/passport-auth.js";
 import fs from "fs-extra";
 import path from "path";
 

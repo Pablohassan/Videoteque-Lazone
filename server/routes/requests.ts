@@ -1,35 +1,41 @@
-import { Router } from "express";
+import { Router, Request, Response } from "express";
 import { prisma } from "../utils/prisma.js";
 import { validateBody } from "../middleware/validation.js";
-import { movieRequestSchema } from "../utils/schemas.js";
+import { movieRequestSchema } from "../schemas/movies.js";
+import type { MovieRequestPayload } from "../schemas/movies.js";
 
 const router = Router();
 
 // POST /api/requests
-router.post("/", validateBody(movieRequestSchema), async (req, res) => {
-  try {
-    const request = await prisma.movieRequest.create({
-      data: {
-        title: req.body.title,
-        description: req.body.description,
-      },
-    });
+router.post(
+  "/",
+  validateBody(movieRequestSchema),
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const request = await prisma.movieRequest.create({
+        data: {
+          title: req.body.title,
+          comment: req.body.comment,
+          userId: 1, // Utilisateur par défaut pour les demandes publiques
+        },
+      });
 
-    res.status(201).json({
-      success: true,
-      message: "Demande de film soumise avec succès",
-      data: { request },
-    });
-  } catch (error: unknown) {
-    res.status(500).json({
-      success: false,
-      message: "Erreur lors de la soumission de la demande",
-    });
+      res.status(201).json({
+        success: true,
+        message: "Demande de film soumise avec succès",
+        data: { request },
+      });
+    } catch (error: unknown) {
+      res.status(500).json({
+        success: false,
+        message: "Erreur lors de la soumission de la demande",
+      });
+    }
   }
-});
+);
 
 // GET /api/requests
-router.get("/", async (req, res) => {
+router.get("/", async (req: Request, res: Response): Promise<void> => {
   try {
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 20;
@@ -38,7 +44,7 @@ router.get("/", async (req, res) => {
     const [requests, total] = await Promise.all([
       prisma.movieRequest.findMany({
         orderBy: {
-          createdAt: "desc",
+          requestedAt: "desc",
         },
         skip,
         take: limit,

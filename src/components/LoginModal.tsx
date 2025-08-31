@@ -8,7 +8,7 @@ import { useToast } from './ui/use-toast';
 interface LoginModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onLoginSuccess: (token: string, user: { id: number; name: string; email: string }) => void;
+    onLoginSuccess: (token: string, user: { id: number; name: string; email: string; role: string }) => void;
 }
 
 export function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginModalProps) {

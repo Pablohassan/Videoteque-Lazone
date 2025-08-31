@@ -1,97 +1,191 @@
-import { Router } from "express";
+import { Router, Request, Response } from "express";
 import { authService } from "../services/authService.js";
 import { validateBody } from "../middleware/validation.js";
-import { authenticateToken } from "../middleware/auth.js";
-import { registerSchema, loginSchema } from "../utils/schemas.js";
-import { AuthRequest } from "../types/index.js";
+import { registerSchema } from "../schemas/auth.js";
+import { asyncErrorHandler } from "../middleware/errorHandler.js";
+import {
+  passportJwtAuth,
+  requireRole,
+  type PassportUser,
+} from "../middleware/passport-auth.js";
 
 const router = Router();
 
-// POST /api/auth/register
-router.post("/register", validateBody(registerSchema), async (req, res) => {
-  try {
-    const result = await authService.register(req.body);
+// ===== USER REGISTRATION =====
+router.post(
+  "/register",
+  validateBody(registerSchema),
+  asyncErrorHandler(async (req: Request, res: Response): Promise<void> => {
+    const { email, name, password } = req.body;
+
+    const result = await authService.register({ email, name, password });
 
     res.status(201).json({
       success: true,
-      message: "Utilisateur créé avec succès",
-      data: result,
+      data: {
+        user: result.user,
+        token: result.token,
+        message: "Registration successful",
+      },
     });
-  } catch (error: unknown) {
-    res.status(400).json({
-      success: false,
-      message: error instanceof Error ? error.message : "Erreur inconnue",
-    });
-  }
-});
+  })
+);
 
-// POST /api/auth/login
-router.post("/login", validateBody(loginSchema), async (req, res) => {
-  try {
-    const result = await authService.login(req.body);
+// ===== USER LOGIN =====
+router.post(
+  "/login",
+  asyncErrorHandler(async (req: Request, res: Response): Promise<void> => {
+    const { email, password } = req.body;
 
-    res.json({
-      success: true,
-      message: "Connexion réussie",
-      data: result,
-    });
-  } catch (error: unknown) {
-    res.status(401).json({
-      success: false,
-      message: error instanceof Error ? error.message : "Erreur inconnue",
-    });
-  }
-});
-
-// GET /api/auth/me
-router.get("/me", authenticateToken, async (req: AuthRequest, res) => {
-  try {
-    const user = await authService.getUserById(req.user!.id);
-
-    if (!user) {
-      return res.status(404).json({
+    if (!email || !password) {
+      res.status(400).json({
         success: false,
-        message: "Utilisateur non trouvé",
+        message: "Email et mot de passe requis",
       });
+      return;
     }
 
-    res.json({
-      success: true,
-      data: { user },
-    });
-  } catch (error: unknown) {
-    res.status(500).json({
-      success: false,
-      message: "Erreur serveur",
-    });
-  }
-});
+    try {
+      const result = await authService.login(email, password);
 
-// POST /api/auth/verify
-router.post("/verify", async (req, res) => {
-  try {
-    const { token } = req.body;
-
-    if (!token) {
-      return res.status(400).json({
+      res.status(200).json({
+        success: true,
+        data: {
+          user: result.user,
+          token: result.token,
+        },
+        message: "Login successful",
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Erreur d'authentification";
+      res.status(401).json({
         success: false,
-        message: "Token requis",
+        message,
       });
     }
+  })
+);
 
-    const decoded = authService.verifyToken(token);
+// ===== TOKEN VERIFICATION =====
+router.get(
+  "/verify",
+  passportJwtAuth,
+  asyncErrorHandler(async (req: Request, res: Response): Promise<void> => {
+    // If we reach here, the token is valid
+    const user = req.user as PassportUser;
 
-    res.json({
+    res.status(200).json({
       success: true,
-      message: "Token valide",
-      data: { decoded },
+      data: {
+        valid: true,
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+        },
+        message: "Token is valid",
+      },
     });
-  } catch (error: unknown) {
-    res.status(401).json({
-      success: false,
-      message: error instanceof Error ? error.message : "Erreur inconnue",
+  })
+);
+
+// ===== USER PROFILE =====
+router.get(
+  "/profile",
+  passportJwtAuth,
+  asyncErrorHandler(async (req: Request, res: Response): Promise<void> => {
+    const userId = (req.user as PassportUser).id;
+
+    const user = await authService.getUserById(userId);
+
+    res.status(200).json({
+      success: true,
+      data: user,
     });
-  }
-});
+  })
+);
+
+// ===== PASSWORD CHANGE =====
+router.post(
+  "/change-password",
+  passportJwtAuth,
+  asyncErrorHandler(async (req: Request, res: Response): Promise<void> => {
+    const { currentPassword, newPassword } = req.body;
+    const userId = (req.user as PassportUser).id;
+
+    if (!currentPassword || !newPassword) {
+      res.status(400).json({
+        success: false,
+        error: {
+          code: "MISSING_PASSWORDS",
+          message: "Current and new passwords are required",
+        },
+      });
+      return;
+    }
+
+    const result = await authService.changePassword(
+      userId,
+      currentPassword,
+      newPassword
+    );
+
+    res.status(200).json({
+      success: true,
+      data: result,
+      message: "Password changed successfully",
+    });
+  })
+);
+
+// ===== USER LOGOUT =====
+router.post(
+  "/logout",
+  passportJwtAuth,
+  asyncErrorHandler(async (req: Request, res: Response): Promise<void> => {
+    const userId = (req.user as PassportUser).id;
+
+    const result = await authService.logout(userId);
+
+    res.status(200).json({
+      success: true,
+      data: result,
+      message: "Logout successful",
+    });
+  })
+);
+
+// ===== TOKEN REFRESH =====
+router.post(
+  "/refresh",
+  passportJwtAuth,
+  asyncErrorHandler(async (req: Request, res: Response): Promise<void> => {
+    const currentToken = req.headers.authorization?.replace("Bearer ", "");
+
+    if (!currentToken) {
+      res.status(400).json({
+        success: false,
+        error: {
+          code: "MISSING_TOKEN",
+          message: "Token is required",
+        },
+      });
+      return;
+    }
+
+    const result = await authService.refreshToken(currentToken);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        user: result.user,
+        token: result.token,
+        message: "Token refreshed successfully",
+      },
+    });
+  })
+);
 
 export default router;

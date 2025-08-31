@@ -1,9 +1,10 @@
-import { Router } from "express";
+import { Router, Request, Response } from "express";
 import { movieService } from "../services/movieService.js";
 import { validateParams, validateQuery } from "../middleware/validation.js";
-import { optionalAuth } from "../middleware/auth.js";
-import { movieIdSchema, moviesQuerySchema } from "../utils/schemas.js";
+import { optionalAuth } from "../middleware/passport-auth.js";
+import { movieIdSchema, moviesQuerySchema } from "../schemas/movies.js";
 import { prisma } from "../utils/prisma.js";
+import type { MoviesQuery, MovieIdParams } from "../schemas/movies.js";
 
 const router = Router();
 
@@ -12,7 +13,7 @@ router.get(
   "/",
   validateQuery(moviesQuerySchema),
   optionalAuth,
-  async (req, res) => {
+  async (req: Request, res: Response): Promise<void> => {
     try {
       const result = await movieService.getAllMovies({
         page: Number(req.query.page) || 1,
@@ -33,24 +34,28 @@ router.get(
 );
 
 // GET /api/movies/suggestions
-router.get("/suggestions", optionalAuth, async (req, res) => {
-  try {
-    const movies = await movieService.getWeeklySuggestions();
+router.get(
+  "/suggestions",
+  optionalAuth,
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const movies = await movieService.getWeeklySuggestions();
 
-    res.json({
-      success: true,
-      data: { movies },
-    });
-  } catch (error: unknown) {
-    res.status(500).json({
-      success: false,
-      message: "Erreur lors de la récupération des suggestions",
-    });
+      res.json({
+        success: true,
+        data: { movies },
+      });
+    } catch (error: unknown) {
+      res.status(500).json({
+        success: false,
+        message: "Erreur lors de la récupération des suggestions",
+      });
+    }
   }
-});
+);
 
 // GET /api/movies/genres
-router.get("/genres", async (req, res) => {
+router.get("/genres", async (req: Request, res: Response): Promise<void> => {
   try {
     const genres = await movieService.getGenres();
 
@@ -67,19 +72,19 @@ router.get("/genres", async (req, res) => {
 });
 
 // GET /api/movies/search
-router.get("/search", async (req, res) => {
+router.get("/search", async (req: Request, res: Response): Promise<void> => {
   try {
     const { q: query, limit } = req.query;
 
     if (!query || typeof query !== "string") {
-      return res.status(400).json({
+      res.status(400).json({
         success: false,
         message: "Paramètre de recherche requis",
       });
     }
 
     const movies = await movieService.searchMovies(
-      query,
+      query as string,
       limit ? parseInt(limit as string) : undefined
     );
 
@@ -100,16 +105,17 @@ router.get(
   "/:id",
   validateParams(movieIdSchema),
   optionalAuth,
-  async (req, res) => {
+  async (req: Request, res: Response): Promise<void> => {
     try {
       const movieId = parseInt(req.params.id);
       const movie = await movieService.getMovieById(movieId);
 
       if (!movie) {
-        return res.status(404).json({
+        res.status(404).json({
           success: false,
           message: "Film non trouvé",
         });
+        return;
       }
 
       res.json({
@@ -130,7 +136,7 @@ router.get(
   "/:id/files-info",
   validateParams(movieIdSchema),
   optionalAuth,
-  async (req, res) => {
+  async (req: Request, res: Response): Promise<void> => {
     try {
       const movieId = parseInt(req.params.id);
 
@@ -150,10 +156,11 @@ router.get(
       });
 
       if (!movie) {
-        return res.status(404).json({
+        res.status(404).json({
           success: false,
           message: "Film non trouvé",
         });
+        return;
       }
 
       // Détecter les sous-titres avec movieService
