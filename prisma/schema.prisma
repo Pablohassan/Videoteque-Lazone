@@ -16,11 +16,33 @@ model User {
   email         String         @unique
   name          String
   password      String // Hash du mot de passe
+  role          UserRole       @default(USER)
+  isActive      Boolean        @default(true)
+  lastLoginAt   DateTime?
   createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @default(now())
   reviews       Review[]
   movieRequests MovieRequest[]
+  adminActions  AdminAction[] // Actions administratives effectuées par cet admin
 
   @@map("users")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+model AdminAction {
+  id           Int      @id @default(autoincrement())
+  action       String // Type d'action (CREATE_USER, RESET_PASSWORD, DELETE_USER, etc.)
+  targetUserId Int? // ID de l'utilisateur ciblé par l'action
+  details      String?  @db.Text // Détails de l'action
+  adminId      Int // ID de l'admin qui a effectué l'action
+  admin        User     @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+
+  @@map("admin_actions")
 }
 
 model Movie {

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { createReadStream } from "fs";
-import { optionalAuth } from "../middleware/auth.js";
+import { optionalAuth } from "../middleware/passport-auth.js";
 import mime from "mime-types";
 import fs from "fs-extra";
 import path from "path";

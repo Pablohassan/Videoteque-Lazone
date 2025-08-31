@@ -11,9 +11,25 @@ node_modules
 dist
 dist-ssr
 *.local
+
+# Environment variables (all variations)
 .env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 /backend/.env
 /frontend/.env
+
+# Security files
+*.key
+*.pem
+*.crt
+*.p12
+*.pfx
+*.jks
+secrets.json
+credentials.json
 
 # Editor directories and files
 .vscode/*

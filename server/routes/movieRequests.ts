@@ -1,23 +1,25 @@
-import { Router } from "express";
+import { Router, Request, Response } from "express";
 import { movieRequestService } from "../services/movieRequestService.js";
-import { authenticateToken } from "../middleware/auth.js";
+import { passportJwtAuth } from "../middleware/passport-auth.js";
 import { validateBody } from "../middleware/validation.js";
-import { movieRequestSchema } from "../utils/schemas.js";
-import type { AuthRequest } from "../types/index.js";
+import { movieRequestSchema } from "../schemas/movies.js";
+import type { PassportRequest, AuthRequest } from "../types/index.js";
+import type { MovieRequestUser } from "../types/movieRequests.js";
+import type { MovieRequestPayload } from "../schemas/movies.js";
 
 const router = Router();
 
 // Middleware d'authentification pour toutes les routes
-router.use(authenticateToken);
+router.use(passportJwtAuth);
 
 // Créer une nouvelle demande de film
 router.post(
   "/",
   validateBody(movieRequestSchema),
-  async (req: AuthRequest, res) => {
+  async (req: Request, res: Response) => {
     try {
       const { title, comment } = req.body;
-      const userId = req.user!.id; // Récupéré du middleware d'authentification
+      const userId = (req.user as MovieRequestUser).id; // Récupéré du middleware d'authentification
 
       const request = await movieRequestService.createRequest({
         title,
@@ -41,9 +43,9 @@ router.post(
 );
 
 // Obtenir toutes les demandes de l'utilisateur connecté
-router.get("/my-requests", async (req: AuthRequest, res) => {
+router.get("/my-requests", async (req: Request, res: Response) => {
   try {
-    const userId = req.user!.id;
+    const userId = (req.user as MovieRequestUser).id;
     const requests = await movieRequestService.getUserRequests(userId);
 
     res.json({
@@ -60,7 +62,7 @@ router.get("/my-requests", async (req: AuthRequest, res) => {
 });
 
 // Obtenir toutes les demandes (pour les admins)
-router.get("/", async (req, res) => {
+router.get("/", async (req: Request, res: Response): Promise<void> => {
   try {
     const requests = await movieRequestService.getAllRequests();
 
@@ -78,13 +80,13 @@ router.get("/", async (req, res) => {
 });
 
 // Obtenir une demande par ID
-router.get("/:id", async (req, res) => {
+router.get("/:id", async (req: Request, res: Response): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
     const request = await movieRequestService.getRequestById(id);
 
     if (!request) {
-      return res.status(404).json({
+      res.status(404).json({
         success: false,
         error: "Demande non trouvée",
       });
@@ -104,36 +106,39 @@ router.get("/:id", async (req, res) => {
 });
 
 // Mettre à jour le statut d'une demande
-router.patch("/:id/status", async (req, res) => {
-  try {
-    const id = parseInt(req.params.id);
-    const { status } = req.body;
+router.patch(
+  "/:id/status",
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const id = parseInt(req.params.id);
+      const { status } = req.body;
 
-    if (!["pending", "processing", "available"].includes(status)) {
-      return res.status(400).json({
+      if (!["pending", "processing", "available"].includes(status)) {
+        res.status(400).json({
+          success: false,
+          error: "Statut invalide",
+        });
+      }
+
+      const request = await movieRequestService.updateRequestStatus(id, status);
+
+      res.json({
+        success: true,
+        message: "Statut mis à jour avec succès",
+        data: request,
+      });
+    } catch (error) {
+      console.error("Erreur lors de la mise à jour du statut:", error);
+      res.status(500).json({
         success: false,
-        error: "Statut invalide",
+        error: "Erreur lors de la mise à jour du statut",
       });
     }
-
-    const request = await movieRequestService.updateRequestStatus(id, status);
-
-    res.json({
-      success: true,
-      message: "Statut mis à jour avec succès",
-      data: request,
-    });
-  } catch (error) {
-    console.error("Erreur lors de la mise à jour du statut:", error);
-    res.status(500).json({
-      success: false,
-      error: "Erreur lors de la mise à jour du statut",
-    });
   }
-});
+);
 
 // Mettre à jour une demande
-router.put("/:id", async (req, res) => {
+router.put("/:id", async (req: Request, res: Response): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
     const { title, comment } = req.body;
@@ -158,7 +163,7 @@ router.put("/:id", async (req, res) => {
 });
 
 // Supprimer une demande
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", async (req: Request, res: Response): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
     await movieRequestService.deleteRequest(id);
@@ -177,21 +182,24 @@ router.delete("/:id", async (req, res) => {
 });
 
 // Obtenir les statistiques des demandes
-router.get("/stats/overview", async (req, res) => {
-  try {
-    const stats = await movieRequestService.getRequestStats();
+router.get(
+  "/stats/overview",
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const stats = await movieRequestService.getRequestStats();
 
-    res.json({
-      success: true,
-      data: stats,
-    });
-  } catch (error) {
-    console.error("Erreur lors de la récupération des statistiques:", error);
-    res.status(500).json({
-      success: false,
-      error: "Erreur lors de la récupération des statistiques",
-    });
+      res.json({
+        success: true,
+        data: stats,
+      });
+    } catch (error) {
+      console.error("Erreur lors de la récupération des statistiques:", error);
+      res.status(500).json({
+        success: false,
+        error: "Erreur lors de la récupération des statistiques",
+      });
+    }
   }
-});
+);
 
 export default router;

@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { Header } from "@/components/header";
 import { HeroSection } from "@/components/hero-section";
 import { MovieGrid } from "@/components/movie-grid";
+import { AdminInterface } from "@/components/AdminInterface";
 
 import { useMovies } from "@/hooks/useMovies";
 import type { Movie } from "@/types/movie";
@@ -19,6 +20,7 @@ const Index = () => {
   const [selectedGenre, setSelectedGenre] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [isOrderFormOpen, setIsOrderFormOpen] = useState(false);
+  const [isAdminInterface, setIsAdminInterface] = useState(false);
 
   const {
     movies,
@@ -71,9 +73,22 @@ const Index = () => {
     setIsOrderFormOpen(true);
   };
 
+  const handleAdminPanelClick = () => {
+    setIsAdminInterface(true);
+  };
+
+  const handleBackToUserInterface = () => {
+    setIsAdminInterface(false);
+  };
+
+  // Si on est en mode admin, afficher l'interface d'administration
+  if (isAdminInterface) {
+    return <AdminInterface onBackToUserInterface={handleBackToUserInterface} />;
+  }
+
   return (
     <div className="min-h-screen bg-background">
-      <Header onSearch={handleSearch} />
+      <Header onSearch={handleSearch} onAdminPanelClick={handleAdminPanelClick} />
       <HeroSection onOpenOrderForm={handleOpenOrderForm} />
 
       {/* Formulaire de commande modal */}

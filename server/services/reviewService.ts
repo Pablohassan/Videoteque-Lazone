@@ -1,22 +1,17 @@
 import { prisma } from "../utils/prisma.js";
+import type { Review, User } from "@prisma/client";
 
-interface CreateReviewData {
+// Utilisation des types Prisma pour éviter la duplication
+type CreateReviewData = {
   movieId: number;
   authorId: number;
   rating: number;
   comment: string;
-}
+};
 
-interface ReviewWithAuthor {
-  id: number;
-  rating: number;
-  comment: string;
-  createdAt: Date;
-  author: {
-    id: number;
-    name: string;
-  };
-}
+type ReviewWithAuthor = Review & {
+  author: Pick<User, "id" | "name">;
+};
 
 export class ReviewService {
   async createReview(data: CreateReviewData): Promise<ReviewWithAuthor> {

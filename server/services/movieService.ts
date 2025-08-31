@@ -1,8 +1,33 @@
 import { prisma } from "../utils/prisma.js";
 import { createTMDBClient } from "../utils/tmdb.js";
 import { TMDBMovie } from "../types/index.js";
-import fs from "fs-extra";
-import path from "path";
+import * as fs from "fs-extra";
+import * as path from "path";
+import type {
+  Movie,
+  Genre,
+  Actor,
+  MovieGenre,
+  MovieActor,
+} from "@prisma/client";
+
+// Type pour les données formatées de film
+type FormattedMovie = {
+  id: number;
+  title: string;
+  synopsis: string;
+  posterUrl: string;
+  trailerUrl: string | null;
+  releaseDate: Date;
+  duration: number;
+  averageRating: number;
+  reviewCount: number;
+  isWeeklySuggestion: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+  genres: Array<{ id: number; name: string }>;
+  actors: Array<{ id: number; name: string; profileUrl: string | null }>;
+};
 
 export class MovieService {
   private tmdbClient: ReturnType<typeof createTMDBClient>;
@@ -14,7 +39,15 @@ export class MovieService {
 
   async getAllMovies(
     options: { page: number; limit: number } = { page: 1, limit: 20 }
-  ) {
+  ): Promise<{
+    movies: FormattedMovie[];
+    pagination: {
+      currentPage: number;
+      totalPages: number;
+      totalItems: number;
+      itemsPerPage: number;
+    };
+  }> {
     try {
       console.log("🔍 getAllMovies appelé avec options:", options);
 
@@ -70,6 +103,7 @@ export class MovieService {
         actors: movie.actors.map((ma) => ({
           id: ma.actor.id,
           name: ma.actor.name,
+          profileUrl: ma.actor.profileUrl,
         })),
       }));
 
@@ -88,7 +122,7 @@ export class MovieService {
     }
   }
 
-  async getWeeklySuggestions() {
+  async getWeeklySuggestions(): Promise<FormattedMovie[]> {
     try {
       const movies = await prisma.movie.findMany({
         where: {
@@ -129,6 +163,7 @@ export class MovieService {
         actors: movie.actors.map((ma) => ({
           id: ma.actor.id,
           name: ma.actor.name,
+          profileUrl: ma.actor.profileUrl,
         })),
       }));
     } catch (error) {
@@ -137,7 +172,7 @@ export class MovieService {
     }
   }
 
-  async getGenres() {
+  async getGenres(): Promise<Genre[]> {
     try {
       return await prisma.genre.findMany({
         orderBy: {
@@ -150,7 +185,7 @@ export class MovieService {
     }
   }
 
-  async getMovieById(id: number) {
+  async getMovieById(id: number): Promise<FormattedMovie | null> {
     try {
       const movie = await prisma.movie.findUnique({
         where: { id },
@@ -190,6 +225,7 @@ export class MovieService {
         actors: movie.actors.map((ma) => ({
           id: ma.actor.id,
           name: ma.actor.name,
+          profileUrl: ma.actor.profileUrl,
         })),
       };
     } catch (error) {
@@ -204,7 +240,7 @@ export class MovieService {
     actors: string[],
     localPath?: string,
     filename?: string
-  ) {
+  ): Promise<Movie> {
     try {
       // Utiliser upsert pour éviter les conflits de contrainte unique
       const movie = await prisma.movie.upsert({
@@ -245,7 +281,7 @@ export class MovieService {
     }
   }
 
-  async searchMovies(query: string, limit = 10) {
+  async searchMovies(query: string, limit = 10): Promise<FormattedMovie[]> {
     try {
       const movies = await prisma.movie.findMany({
         where: {
@@ -289,6 +325,7 @@ export class MovieService {
         actors: movie.actors.map((ma) => ({
           id: ma.actor.id,
           name: ma.actor.name,
+          profileUrl: ma.actor.profileUrl,
         })),
       }));
     } catch (error) {

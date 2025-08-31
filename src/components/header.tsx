@@ -1,21 +1,24 @@
 import { Button } from "@/components/ui/button";
 import { SearchBar } from "@/components/ui/search-bar";
-import { Film, User, LogIn, LogOut } from "lucide-react";
+import { Film, User, LogIn, LogOut, Settings, Shield } from "lucide-react";
 import { useState, useEffect } from "react";
 import { LoginModal } from "./LoginModal";
 import { apiService } from "../services/apiService";
+import { Badge } from "@/components/ui/badge";
 
 interface User {
   id: number;
   name: string;
   email: string;
+  role: string;
 }
 
 interface HeaderProps {
   onSearch?: (query: string) => void;
+  onAdminPanelClick?: () => void;
 }
 
-export function Header({ onSearch }: HeaderProps) {
+export function Header({ onSearch, onAdminPanelClick }: HeaderProps) {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -47,6 +50,8 @@ export function Header({ onSearch }: HeaderProps) {
     setUser(null);
   };
 
+  const isAdmin = user?.role === 'ADMIN';
+
   if (isLoading) {
     return (
       <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -74,8 +79,6 @@ export function Header({ onSearch }: HeaderProps) {
           </div>
 
           <nav className="hidden md:flex items-center gap-6">
-
-
             <a href="#" className="text-sm font-medium hover:text-accent transition-colors">
               Nouveautés
             </a>
@@ -86,9 +89,30 @@ export function Header({ onSearch }: HeaderProps) {
             <div className="flex items-center gap-2">
               {user ? (
                 <>
-                  <span className="text-sm text-muted-foreground">
-                    Bonjour, {user.name}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground">
+                      Bonjour, {user.name}
+                    </span>
+                    {isAdmin && (
+                      <Badge variant="secondary" className="text-xs">
+                        <Shield className="h-3 w-3 mr-1" />
+                        Admin
+                      </Badge>
+                    )}
+                  </div>
+
+                  {isAdmin && onAdminPanelClick && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={onAdminPanelClick}
+                      className="bg-blue-50 hover:bg-blue-100 border-blue-200"
+                    >
+                      <Settings className="h-4 w-4 mr-2" />
+                      Administration
+                    </Button>
+                  )}
+
                   <Button variant="outline" size="sm" onClick={handleLogout}>
                     <LogOut className="h-4 w-4 mr-2" />
                     Déconnexion
