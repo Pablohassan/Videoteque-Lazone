@@ -152,7 +152,7 @@ export function MovieScanner({ onScan, scanning, results }: MovieScannerProps) {
                                         </div>
 
                                         {result.success && result.tmdbMovie ? (
-                                            <p className="text-xs text-green-600">
+                                            <p className="h-4 w-4 text-green-600">
                                                 ✓ Trouvé: {result.tmdbMovie.title} ({result.tmdbMovie.releaseYear})
                                             </p>
                                         ) : (

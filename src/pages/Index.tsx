@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { Header } from "@/components/header";
 import { HeroSection } from "@/components/hero-section";
 import { MovieGrid } from "@/components/movie-grid";
-import { MovieScanner } from "@/components/movie-scanner";
+
 import { useMovies } from "@/hooks/useMovies";
 import type { Movie } from "@/types/movie";
 import { Button } from "@/components/ui/button";
@@ -10,18 +10,21 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { RefreshCw, Film, Upload } from "lucide-react";
+import { RefreshCw, Film } from "lucide-react";
+import { OrderedMovies } from "@/components/ordered-movies";
+import OrderMovieForm from "@/components/order-movie-form";
+import { apiService } from "@/services/apiService";
 
 const Index = () => {
   const [selectedGenre, setSelectedGenre] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [isOrderFormOpen, setIsOrderFormOpen] = useState(false);
+
   const {
     movies,
     suggestions,
     loading,
     error,
-    scanFiles,
-    scanResults,
-    scanning,
     refreshMovies
   } = useMovies();
 
@@ -34,20 +37,55 @@ const Index = () => {
     return Array.from(genresSet).sort();
   }, [movies]);
 
-  // Filtrer les films par genre
-  const filteredMovies = selectedGenre
-    ? movies.filter(movie => movie.genres.includes(selectedGenre))
-    : movies;
+  // Fonction de recherche
+  const handleSearch = (query: string) => {
+    setSearchQuery(query);
+  };
+
+  // Filtrer les films par genre et recherche
+  const filteredMovies = useMemo(() => {
+    let filtered = movies;
+
+    // Filtrage par genre
+    if (selectedGenre) {
+      filtered = filtered.filter(movie => movie.genres.includes(selectedGenre));
+    }
+
+    // Filtrage par recherche
+    if (searchQuery.trim()) {
+      filtered = filtered.filter(movie =>
+        movie.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        movie.synopsis.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+
+    return filtered;
+  }, [movies, selectedGenre, searchQuery]);
 
   const handleMovieClick = (movie: Movie) => {
     console.log("Movie clicked:", movie.title);
     // TODO: Navigate to movie detail page
   };
 
+  const handleOpenOrderForm = () => {
+    setIsOrderFormOpen(true);
+  };
+
   return (
     <div className="min-h-screen bg-background">
-      <Header />
-      <HeroSection />
+      <Header onSearch={handleSearch} />
+      <HeroSection onOpenOrderForm={handleOpenOrderForm} />
+
+      {/* Formulaire de commande modal */}
+      <OrderMovieForm
+        isOpen={isOrderFormOpen}
+        onClose={() => setIsOrderFormOpen(false)}
+        onOrderSubmitted={() => {
+          setIsOrderFormOpen(false);
+          // Optionnel : recharger les demandes si on est dans l'onglet commandes
+        }}
+        showTrigger={false}
+      />
 
       <main className="container mx-auto px-4 py-12 space-y-16">
         {/* Error Alert */}
@@ -64,9 +102,10 @@ const Index = () => {
               <Film className="h-4 w-4" />
               Votre Collection
             </TabsTrigger>
-            <TabsTrigger value="scanner" className="flex items-center gap-2">
-              <Upload className="h-4 w-4" />
-              Scanner vos films
+
+            <TabsTrigger value="orders" className="flex items-center gap-2">
+              <Film className="h-4 w-4" />
+              Mes Commandes
             </TabsTrigger>
           </TabsList>
 
@@ -124,7 +163,13 @@ const Index = () => {
             {/* All Movies */}
             <MovieGrid
               movies={filteredMovies}
-              title={selectedGenre ? `Films - ${selectedGenre}` : "Votre Collection de Films"}
+              title={
+                searchQuery.trim()
+                  ? `Résultats de recherche pour "${searchQuery}" (${filteredMovies.length} films)`
+                  : selectedGenre
+                    ? `Films - ${selectedGenre}`
+                    : "Votre Collection de Films"
+              }
               onMovieClick={handleMovieClick}
             />
 
@@ -141,12 +186,10 @@ const Index = () => {
             )}
           </TabsContent>
 
-          <TabsContent value="scanner" className="space-y-6">
-            <MovieScanner
-              onScan={scanFiles}
-              scanning={scanning}
-              results={scanResults}
-            />
+
+
+          <TabsContent value="orders" className="space-y-6">
+            <OrderedMovies />
           </TabsContent>
         </Tabs>
       </main>
@@ -154,8 +197,7 @@ const Index = () => {
       {/* Footer */}
       <footer className="bg-secondary/20 border-t border-border/40 py-8">
         <div className="container mx-auto px-4 text-center">
-          <p className="text-muted-foreground">
-            CinéCatalogue - Votre destination cinéma. Pour l'authentification et la base de données,
+          <p className="text-muted-foreground">Videotej - Votre destination cinéma. Pour l'authentification et la base de données,
             connectez-vous à Supabase via le bouton vert en haut à droite.
           </p>
         </div>

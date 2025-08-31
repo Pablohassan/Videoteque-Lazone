@@ -197,8 +197,19 @@ export class MovieService {
 
   async createMovie(tmdbMovie: TMDBMovie, genres: string[], actors: string[]) {
     try {
-      const movie = await prisma.movie.create({
-        data: {
+      // Utiliser upsert pour éviter les conflits de contrainte unique
+      const movie = await prisma.movie.upsert({
+        where: { tmdbId: tmdbMovie.id },
+        update: {
+          title: tmdbMovie.title,
+          synopsis: tmdbMovie.overview || "",
+          posterUrl: `https://image.tmdb.org/t/p/w500${tmdbMovie.poster_path}`,
+          trailerUrl: null, // Will be set later if needed
+          releaseDate: new Date(tmdbMovie.release_date),
+          duration: tmdbMovie.runtime || 0,
+          rating: 0,
+        },
+        create: {
           tmdbId: tmdbMovie.id,
           title: tmdbMovie.title,
           synopsis: tmdbMovie.overview || "",
