@@ -18,6 +18,8 @@ interface VideoPlayerModalProps {
     fileSize?: number;
     filePath?: string;
     filename?: string;
+    codec?: string;
+    container?: string;
 }
 
 export function VideoPlayerModal({
@@ -28,24 +30,38 @@ export function VideoPlayerModal({
     subtitleFiles,
     fileSize,
     filePath,
-    filename
+    filename,
+    codec,
+    container
 }: VideoPlayerModalProps) {
     const [showWarning, setShowWarning] = useState(false);
     const [isLargeFile, setIsLargeFile] = useState(false);
+    const [isAC3File, setIsAC3File] = useState(false);
+    const [showAC3Warning, setShowAC3Warning] = useState(false);
 
-    // Détection automatique des fichiers volumineux (> 2GB)
+    // Détection automatique des fichiers volumineux (> 2GB) et AC3
     useEffect(() => {
         if (fileSize) {
             const isLarge = fileSize > 2 * 1024 * 1024 * 1024; // 2GB en bytes
             setIsLargeFile(isLarge);
             setShowWarning(isLarge);
         }
-    }, [fileSize]);
+
+        // Détection des fichiers AC3 dans le nom
+        if (filename || filePath) {
+            const fileName = filename || (filePath ? filePath.split('/').pop() : '');
+            const hasAC3 = fileName ? fileName.toLowerCase().includes('ac3') : false;
+            console.log('🎵 Détection AC3:', { fileName, hasAC3, filename, filePath });
+            setIsAC3File(hasAC3);
+            setShowAC3Warning(hasAC3);
+        }
+    }, [fileSize, filename, filePath]);
 
     // Reset state when modal closes
     useEffect(() => {
         if (!isOpen) {
             setShowWarning(false);
+            setShowAC3Warning(false);
         }
     }, [isOpen]);
 
@@ -58,13 +74,15 @@ export function VideoPlayerModal({
     };
 
     const handleDownloadForVLC = () => {
-        if (filePath && filename) {
-            const downloadUrl = `/api/files/download/${encodeURIComponent(filename)}?path=${encodeURIComponent(filePath)}`;
+        if (filePath) {
+            // Extraire le nom réel du fichier depuis le chemin
+            const realFilename = filePath.split('/').pop() || 'film';
+            const downloadUrl = `/api/files/download/${encodeURIComponent(realFilename)}?path=${encodeURIComponent(filePath)}`;
 
             // Créer un lien temporaire et déclencher le téléchargement
             const link = document.createElement('a');
             link.href = downloadUrl;
-            link.download = filename;
+            link.download = realFilename;
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
@@ -73,6 +91,10 @@ export function VideoPlayerModal({
 
     const handleContinuePlaying = () => {
         setShowWarning(false);
+    };
+
+    const handleContinueAC3 = () => {
+        setShowAC3Warning(false);
     };
 
     return (
@@ -85,6 +107,12 @@ export function VideoPlayerModal({
                             <Badge variant="destructive" className="text-xs">
                                 <AlertTriangle className="h-3 w-3 mr-1" />
                                 {fileSize ? formatFileSize(fileSize) : "Large file"}
+                            </Badge>
+                        )}
+                        {isAC3File && (
+                            <Badge variant="secondary" className="text-xs">
+                                <Info className="h-3 w-3 mr-1" />
+                                AC3 Audio
                             </Badge>
                         )}
                     </DialogTitle>
@@ -142,6 +170,57 @@ export function VideoPlayerModal({
                     </div>
                 )}
 
+                {/* Overlay d'avertissement pour les fichiers AC3 */}
+                {showAC3Warning && (
+                    <div className="absolute inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-6">
+                        <div className="bg-white rounded-lg p-6 max-w-md w-full space-y-4">
+                            <div className="flex items-center gap-2 text-blue-600">
+                                <Info className="h-6 w-6" />
+                                <h3 className="text-lg font-semibold">Format audio AC3 détecté</h3>
+                            </div>
+
+                            <Alert>
+                                <Info className="h-4 w-4" />
+                                <AlertDescription>
+                                    Ce fichier contient une piste audio AC3 qui ne peut pas être lue nativement dans un navigateur web.
+                                </AlertDescription>
+                            </Alert>
+
+                            <div className="space-y-3">
+                                <Alert>
+                                    <AlertTriangle className="h-4 w-4" />
+                                    <AlertDescription>
+                                        <strong>Conseils d'utilisation :</strong>
+                                        <ul className="mt-2 space-y-1 text-sm">
+                                            <li>• Téléchargez le fichier pour le regarder sur VLC</li>
+                                            <li>• Utilisez un lecteur externe compatible AC3</li>
+                                            <li>• La lecture dans le navigateur peut ne pas avoir de son</li>
+                                        </ul>
+                                    </AlertDescription>
+                                </Alert>
+
+                                <div className="flex gap-2">
+                                    <Button
+                                        onClick={handleDownloadForVLC}
+                                        className="flex-1 flex items-center gap-2"
+                                        variant="outline"
+                                    >
+                                        <Download className="h-4 w-4" />
+                                        Télécharger pour VLC
+                                    </Button>
+                                    <Button
+                                        onClick={handleContinueAC3}
+                                        className="flex-1 flex items-center gap-2"
+                                    >
+                                        <PlayCircle className="h-4 w-4" />
+                                        Continuer malgré tout
+                                    </Button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 <div className="relative">
                     {/* Lecteur vidéo avec contrôles natifs uniquement */}
                     <VideoPlayer className="w-full aspect-video">
@@ -165,8 +244,8 @@ export function VideoPlayerModal({
                         </VideoPlayerContent>
                     </VideoPlayer>
 
-                    {/* Bouton de téléchargement permanent pour les gros fichiers */}
-                    {isLargeFile && !showWarning && (
+                    {/* Bouton de téléchargement permanent pour les gros fichiers et AC3 */}
+                    {(isLargeFile || isAC3File) && (!showWarning && !showAC3Warning) && (
                         <div className="absolute top-4 right-4">
                             <Button
                                 onClick={handleDownloadForVLC}

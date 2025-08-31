@@ -3,6 +3,7 @@ import { createReadStream } from "fs";
 import { optionalAuth } from "../middleware/auth.js";
 import mime from "mime-types";
 import fs from "fs-extra";
+import path from "path";
 
 const router = Router();
 
@@ -42,8 +43,14 @@ router.get("/download/:filename", optionalAuth, async (req, res) => {
         ? detectedMime
         : "application/octet-stream";
 
-    // Définir les headers pour le téléchargement
-    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    // Extraire le nom réel du fichier depuis le chemin
+    const realFilename = path.basename(filePath);
+
+    // Définir les headers pour le téléchargement avec le nom réel du fichier
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${realFilename}"`
+    );
     res.setHeader("Content-Type", mimeType);
     res.setHeader("Content-Length", (await fs.stat(filePath)).size);
 
@@ -108,6 +115,9 @@ router.get("/stream/:filename", optionalAuth, async (req, res) => {
     const detectedMime = mime.lookup(filePath);
     const mimeType =
       typeof detectedMime === "string" ? detectedMime : "video/mp4";
+
+    // Extraire le nom réel du fichier depuis le chemin pour les logs
+    const realFilename = path.basename(filePath);
 
     if (range) {
       // Support des range headers pour la lecture partielle

@@ -101,27 +101,27 @@ export function MovieFiles({ movieId }: MovieFilesProps) {
         }
     }, [movieId, loadMovieFiles]);
 
-    const handleDownload = async (filePath: string, filename: string) => {
+    const handleDownload = async (filePath: string, filename: string, displayName: string) => {
         try {
             toast({
                 title: "Téléchargement en cours...",
-                description: `Téléchargement de ${filename}`,
+                description: `Téléchargement de ${displayName}`,
             });
 
             // Créer l'URL de téléchargement
-            const downloadUrl = `/api/files/download/${encodeURIComponent(filename)}?path=${encodeURIComponent(filePath)}`;
+            const downloadUrl = `/api/files/download/${encodeURIComponent(displayName)}?path=${encodeURIComponent(filePath)}`;
 
             // Créer un lien temporaire et déclencher le téléchargement
             const link = document.createElement('a');
             link.href = downloadUrl;
-            link.download = filename;
+            link.download = displayName;
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
 
             toast({
                 title: "Téléchargement terminé",
-                description: `${filename} a été téléchargé`,
+                description: `${displayName} a été téléchargé`,
             });
         } catch (error) {
             toast({
@@ -132,12 +132,15 @@ export function MovieFiles({ movieId }: MovieFilesProps) {
         }
     };
 
-    const handlePlay = (filePath: string, filename: string) => {
+    const handlePlay = (filePath: string, filename: string, displayName: string) => {
         try {
-            const videoUrl = `/api/files/stream/${encodeURIComponent(filename)}?path=${encodeURIComponent(filePath)}`;
-            setCurrentVideo({ url: videoUrl, title: filename });
+            // Utiliser l'URL complète du backend
+            const videoUrl = `http://localhost:3001/api/files/stream/${encodeURIComponent(displayName)}?path=${encodeURIComponent(filePath)}`;
+            console.log('🎬 URL de streaming:', videoUrl);
+            setCurrentVideo({ url: videoUrl, title: displayName });
             setVideoPlayerOpen(true);
         } catch (error) {
+            console.error('❌ Erreur lors de la création de l\'URL:', error);
             toast({
                 title: "Erreur",
                 description: "Erreur lors de l'ouverture du lecteur",
@@ -225,7 +228,7 @@ export function MovieFiles({ movieId }: MovieFilesProps) {
                                     <div className="flex gap-2">
                                         <Button
                                             size="sm"
-                                            onClick={() => handlePlay(file.path, file.filename)}
+                                            onClick={() => handlePlay(file.path, file.filename, file.displayName)}
                                             className="flex items-center gap-2"
                                         >
                                             <Play className="h-4 w-4" />
@@ -234,7 +237,7 @@ export function MovieFiles({ movieId }: MovieFilesProps) {
                                         <Button
                                             size="sm"
                                             variant="outline"
-                                            onClick={() => handleDownload(file.path, file.filename)}
+                                            onClick={() => handleDownload(file.path, file.filename, file.displayName)}
                                             className="flex items-center gap-2"
                                         >
                                             <Download className="h-4 w-4" />
@@ -270,7 +273,7 @@ export function MovieFiles({ movieId }: MovieFilesProps) {
                                     <Button
                                         size="sm"
                                         variant="outline"
-                                        onClick={() => handleDownload(subtitle.path, subtitle.filename)}
+                                        onClick={() => handleDownload(subtitle.path, subtitle.filename, subtitle.filename)}
                                         className="flex items-center gap-2"
                                     >
                                         <Download className="h-4 w-4" />
@@ -303,7 +306,9 @@ export function MovieFiles({ movieId }: MovieFilesProps) {
                     subtitleFiles={movieFolder.subtitleFiles || []}
                     fileSize={movieFolder.videoFiles[0]?.size}
                     filePath={movieFolder.videoFiles[0]?.path}
-                    filename={movieFolder.videoFiles[0]?.filename}
+                    filename={movieFolder.videoFiles[0]?.displayName}
+                    codec="ac3" // Codec AC3 détecté depuis le nom de fichier
+                    container={movieFolder.videoFiles[0]?.container || "mkv"}
                 />
             )}
         </Card>
