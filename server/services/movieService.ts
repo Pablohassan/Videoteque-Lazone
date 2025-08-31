@@ -21,13 +21,25 @@ export class MovieService {
 
       console.log("🔍 Paramètres calculés:", { page, limit, skip });
 
-      // Récupérer les films de base
+      // Récupérer les films de base avec relations
       const movies = await prisma.movie.findMany({
         orderBy: {
           createdAt: "desc",
         },
         skip,
         take: limit,
+        include: {
+          genres: {
+            include: {
+              genre: true,
+            },
+          },
+          actors: {
+            include: {
+              actor: true,
+            },
+          },
+        },
       });
 
       const total = await prisma.movie.count();
@@ -48,8 +60,14 @@ export class MovieService {
         isWeeklySuggestion: movie.isWeeklySuggestion,
         createdAt: movie.createdAt,
         updatedAt: movie.updatedAt,
-        genres: [],
-        actors: [],
+        genres: movie.genres.map((mg) => ({
+          id: mg.genre.id,
+          name: mg.genre.name,
+        })),
+        actors: movie.actors.map((ma) => ({
+          id: ma.actor.id,
+          name: ma.actor.name,
+        })),
       }));
 
       return {
@@ -74,6 +92,18 @@ export class MovieService {
           isWeeklySuggestion: true,
         },
         take: 3,
+        include: {
+          genres: {
+            include: {
+              genre: true,
+            },
+          },
+          actors: {
+            include: {
+              actor: true,
+            },
+          },
+        },
       });
 
       return movies.map((movie) => ({
@@ -89,8 +119,14 @@ export class MovieService {
         isWeeklySuggestion: movie.isWeeklySuggestion,
         createdAt: movie.createdAt,
         updatedAt: movie.updatedAt,
-        genres: [],
-        actors: [],
+        genres: movie.genres.map((mg) => ({
+          id: mg.genre.id,
+          name: mg.genre.name,
+        })),
+        actors: movie.actors.map((ma) => ({
+          id: ma.actor.id,
+          name: ma.actor.name,
+        })),
       }));
     } catch (error) {
       console.error("❌ Erreur dans getWeeklySuggestions:", error);
@@ -115,6 +151,18 @@ export class MovieService {
     try {
       const movie = await prisma.movie.findUnique({
         where: { id },
+        include: {
+          genres: {
+            include: {
+              genre: true,
+            },
+          },
+          actors: {
+            include: {
+              actor: true,
+            },
+          },
+        },
       });
 
       if (!movie) return null;
@@ -132,8 +180,14 @@ export class MovieService {
         isWeeklySuggestion: movie.isWeeklySuggestion,
         createdAt: movie.createdAt,
         updatedAt: movie.updatedAt,
-        genres: [],
-        actors: [],
+        genres: movie.genres.map((mg) => ({
+          id: mg.genre.id,
+          name: mg.genre.name,
+        })),
+        actors: movie.actors.map((ma) => ({
+          id: ma.actor.id,
+          name: ma.actor.name,
+        })),
       };
     } catch (error) {
       console.error("❌ Erreur dans getMovieById:", error);
@@ -175,6 +229,18 @@ export class MovieService {
           },
         },
         take: limit,
+        include: {
+          genres: {
+            include: {
+              genre: true,
+            },
+          },
+          actors: {
+            include: {
+              actor: true,
+            },
+          },
+        },
       });
 
       return movies.map((movie) => ({
@@ -190,8 +256,14 @@ export class MovieService {
         isWeeklySuggestion: movie.isWeeklySuggestion,
         createdAt: movie.createdAt,
         updatedAt: movie.updatedAt,
-        genres: [],
-        actors: [],
+        genres: movie.genres.map((mg) => ({
+          id: mg.genre.id,
+          name: mg.genre.name,
+        })),
+        actors: movie.actors.map((ma) => ({
+          id: ma.actor.id,
+          name: ma.actor.name,
+        })),
       }));
     } catch (error) {
       console.error("❌ Erreur dans searchMovies:", error);
