@@ -12,12 +12,13 @@ datasource db {
 }
 
 model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  name      String
-  password  String // Hash du mot de passe
-  createdAt DateTime @default(now())
-  reviews   Review[]
+  id            Int            @id @default(autoincrement())
+  email         String         @unique
+  name          String
+  password      String // Hash du mot de passe
+  createdAt     DateTime       @default(now())
+  reviews       Review[]
+  movieRequests MovieRequest[]
 
   @@map("users")
 }
@@ -112,8 +113,14 @@ model Review {
 model MovieRequest {
   id          Int      @id @default(autoincrement())
   title       String
-  description String?
-  createdAt   DateTime @default(now())
+  comment     String?  @db.Text // Commentaire de l'utilisateur
+  status      String   @default("pending") // pending, processing, available
+  requestedAt DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relation avec l'utilisateur qui a fait la demande
+  userId Int
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("movie_requests")
 }

@@ -5,12 +5,14 @@ import rateLimit from "express-rate-limit";
 import path from "path";
 import { fileURLToPath } from "url";
 import dotenv from "dotenv";
+import { MovieScanner } from "./scripts/movieScanner.js";
 
 // Import routes
 import authRoutes from "./routes/auth.js";
 import movieRoutes from "./routes/movies.js";
 import reviewRoutes from "./routes/reviews.js";
 import requestRoutes from "./routes/requests.js";
+import movieRequestRoutes from "./routes/movieRequests.js";
 
 // Load environment variables
 dotenv.config();
@@ -18,6 +20,29 @@ dotenv.config();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isProduction = process.env.NODE_ENV === "production";
 const port = process.env.PORT || 3001;
+
+// Configuration du scan automatique
+const AUTO_SCAN_INTERVAL = parseInt(
+  process.env.AUTO_SCAN_INTERVAL || "3600000"
+); // 1 heure par défaut
+const AUTO_SCAN_ENABLED = process.env.AUTO_SCAN_ENABLED !== "false"; // Activé par défaut
+
+// Fonction de scan automatique
+async function startAutoScan() {
+  if (!AUTO_SCAN_ENABLED) {
+    console.log("⚠️ Scan automatique désactivé");
+    return;
+  }
+
+  try {
+    const scanner = new MovieScanner();
+    console.log("🔍 Démarrage du scan automatique...");
+    await scanner.scanFolder();
+    console.log("✅ Scan automatique terminé");
+  } catch (error) {
+    console.error("❌ Erreur lors du scan automatique:", error);
+  }
+}
 
 async function createServer() {
   const app = express();
@@ -61,10 +86,21 @@ async function createServer() {
   app.use("/api/movies", movieRoutes);
   app.use("/api/reviews", reviewRoutes);
   app.use("/api/requests", requestRoutes);
+  app.use("/api/movie-requests", movieRequestRoutes);
 
   // Health check
   app.get("/api/health", (req, res) => {
     res.json({ status: "OK", timestamp: new Date().toISOString() });
+  });
+
+  // Déclencher un scan manuel
+  app.post("/api/scan-now", async (req, res) => {
+    try {
+      await startAutoScan();
+      res.json({ success: true, message: "Scan lancé avec succès" });
+    } catch (error) {
+      res.status(500).json({ success: false, error: "Erreur lors du scan" });
+    }
   });
 
   // En production seulement, servir les fichiers statiques du frontend
@@ -77,6 +113,21 @@ async function createServer() {
 
   app.listen(port, () => {
     console.log(`🚀 Serveur démarré sur http://localhost:${port}`);
+
+    // Démarrer le scan automatique
+    if (AUTO_SCAN_ENABLED) {
+      console.log(
+        `⏰ Scan automatique configuré toutes les ${
+          AUTO_SCAN_INTERVAL / 60000
+        } minutes`
+      );
+
+      // Premier scan au démarrage
+      startAutoScan();
+
+      // Timer pour les scans suivants
+      setInterval(startAutoScan, AUTO_SCAN_INTERVAL);
+    }
   });
 }
 

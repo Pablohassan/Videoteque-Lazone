@@ -1,25 +1,19 @@
 import { useState, useEffect } from "react";
 import { apiService } from "../services/apiService";
 import type { Movie } from "../types/movie";
-import type { ScanResult } from "../services/movieScannerService";
 
 export interface UseMoviesReturn {
   movies: Movie[];
   suggestions: Movie[];
   loading: boolean;
   error: string | null;
-  scanFiles: (files: FileList) => Promise<ScanResult[]>;
-  scanResults: ScanResult[];
-  scanning: boolean;
   refreshMovies: () => Promise<void>;
 }
 
 export function useMovies(): UseMoviesReturn {
   const [movies, setMovies] = useState<Movie[]>([]);
   const [suggestions, setSuggestions] = useState<Movie[]>([]);
-  const [scanResults, setScanResults] = useState<ScanResult[]>([]);
   const [loading, setLoading] = useState(false);
-  const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Charger les films depuis la base de données
@@ -87,28 +81,6 @@ export function useMovies(): UseMoviesReturn {
     await Promise.all([loadMovies(), loadSuggestions()]);
   };
 
-  // Scanner les fichiers (simulation pour l'instant)
-  const scanFiles = async (files: FileList): Promise<ScanResult[]> => {
-    setScanning(true);
-    const results: ScanResult[] = [];
-
-    for (const file of Array.from(files)) {
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      results.push({
-        filename: file.name,
-        parsed: {
-          title: file.name.replace(/\.[^/.]+$/, ""),
-          year: new Date().getFullYear(),
-        },
-        success: true,
-      });
-    }
-
-    setScanResults(results);
-    setScanning(false);
-    return results;
-  };
-
   // Charger les données au montage
   useEffect(() => {
     refreshMovies();
@@ -119,9 +91,6 @@ export function useMovies(): UseMoviesReturn {
     suggestions,
     loading,
     error,
-    scanFiles,
-    scanResults,
-    scanning,
     refreshMovies,
   };
 }

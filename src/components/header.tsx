@@ -1,44 +1,121 @@
 import { Button } from "@/components/ui/button";
 import { SearchBar } from "@/components/ui/search-bar";
-import { Film, User, LogIn } from "lucide-react";
+import { Film, User, LogIn, LogOut } from "lucide-react";
+import { useState, useEffect } from "react";
+import { LoginModal } from "./LoginModal";
+import { apiService } from "../services/apiService";
 
-export function Header() {
-  return (
-    <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container flex h-16 items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Film className="h-8 w-8 text-primary" />
-          <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-            CinéCatalogue
-          </h1>
-        </div>
+interface User {
+  id: number;
+  name: string;
+  email: string;
+}
 
-        <nav className="hidden md:flex items-center gap-6">
-          <a href="#" className="text-sm font-medium hover:text-accent transition-colors">
-            Accueil
-          </a>
-          <a href="#" className="text-sm font-medium hover:text-accent transition-colors">
-            Genres
-          </a>
-          <a href="#" className="text-sm font-medium hover:text-accent transition-colors">
-            Nouveautés
-          </a>
-        </nav>
+interface HeaderProps {
+  onSearch?: (query: string) => void;
+}
 
-        <div className="flex items-center gap-4">
-          <SearchBar />
+export function Header({ onSearch }: HeaderProps) {
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    // Vérifier si l'utilisateur est déjà connecté
+    if (apiService.isAuthenticated()) {
+      const userData = localStorage.getItem('user');
+      if (userData) {
+        try {
+          setUser(JSON.parse(userData));
+        } catch (error) {
+          console.error('Erreur lors du parsing des données utilisateur:', error);
+          apiService.logout();
+        }
+      }
+    }
+    setIsLoading(false);
+  }, []);
+
+  const handleLoginSuccess = (token: string, userData: User) => {
+    // L'apiService gère automatiquement le stockage du token
+    setUser(userData);
+    setIsLoginModalOpen(false);
+  };
+
+  const handleLogout = () => {
+    apiService.logout();
+    setUser(null);
+  };
+
+  if (isLoading) {
+    return (
+      <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="container flex h-16 items-center justify-between">
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm">
-              <LogIn className="h-4 w-4 mr-2" />
-              Connexion
-            </Button>
-            <Button variant="outline" size="sm">
-              <User className="h-4 w-4 mr-2" />
-              S'inscrire
-            </Button>
+            <Film className="h-8 w-8 text-primary" />
+            <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+              Videotek
+            </h1>
           </div>
         </div>
-      </div>
-    </header>
+      </header>
+    );
+  }
+
+  return (
+    <>
+      <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="container flex h-16 items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Film className="h-8 w-8 text-primary" />
+            <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+              Videotek
+            </h1>
+          </div>
+
+          <nav className="hidden md:flex items-center gap-6">
+
+
+            <a href="#" className="text-sm font-medium hover:text-accent transition-colors">
+              Nouveautés
+            </a>
+          </nav>
+
+          <div className="flex items-center gap-4">
+            <SearchBar onSearch={onSearch} />
+            <div className="flex items-center gap-2">
+              {user ? (
+                <>
+                  <span className="text-sm text-muted-foreground">
+                    Bonjour, {user.name}
+                  </span>
+                  <Button variant="outline" size="sm" onClick={handleLogout}>
+                    <LogOut className="h-4 w-4 mr-2" />
+                    Déconnexion
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button variant="ghost" size="sm" onClick={() => setIsLoginModalOpen(true)}>
+                    <LogIn className="h-4 w-4 mr-2" />
+                    Connexion
+                  </Button>
+                  <Button variant="outline" size="sm">
+                    <User className="h-4 w-4 mr-2" />
+                    S'inscrire
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <LoginModal
+        isOpen={isLoginModalOpen}
+        onClose={() => setIsLoginModalOpen(false)}
+        onLoginSuccess={handleLoginSuccess}
+      />
+    </>
   );
 }

@@ -23,7 +23,7 @@ export const createReviewSchema = z.object({
 
 export const movieRequestSchema = z.object({
   title: z.string().min(1, "Titre requis"),
-  description: z.string().optional(),
+  comment: z.string().optional(),
 });
 
 export const movieIdSchema = z.object({

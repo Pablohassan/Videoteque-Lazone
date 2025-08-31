@@ -198,31 +198,19 @@ class MovieAutoIndexer {
         // Informations du fichier local
         localPath: parsedMovie.filepath,
         filename: parsedMovie.filename,
-        fileSize: parsedMovie.size.toString(), // Convert BigInt to string for Prisma
+        fileSize: BigInt(parsedMovie.size), // Convertir en BigInt pour Prisma
         resolution: parsedMovie.resolution || "",
         codec: parsedMovie.codec || "",
         container: parsedMovie.container || "",
         lastScanned: new Date(),
       };
 
-      // Vérifier si le film existe déjà
-      const existingMovie = await prisma.movie.findFirst({
+      // Utiliser upsert pour éviter les conflits de contrainte unique
+      const dbMovie = await prisma.movie.upsert({
         where: { tmdbId: fullTmdbMovie.id },
+        update: movieData,
+        create: movieData,
       });
-
-      let dbMovie;
-      if (existingMovie) {
-        // Mettre à jour
-        dbMovie = await prisma.movie.update({
-          where: { id: existingMovie.id },
-          data: movieData,
-        });
-      } else {
-        // Créer nouveau
-        dbMovie = await prisma.movie.create({
-          data: movieData,
-        });
-      }
 
       // Gérer les genres (relation many-to-many)
       if (movieGenres.length > 0) {

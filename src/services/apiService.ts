@@ -55,11 +55,51 @@ export interface SearchResponse {
   };
 }
 
+// Interfaces pour les demandes de films
+export interface MovieRequest {
+  id: number;
+  title: string;
+  comment?: string;
+  status: "pending" | "processing" | "available";
+  requestedAt: string;
+  updatedAt: string;
+  user: {
+    id: number;
+    name: string;
+    email: string;
+  };
+}
+
+export interface MovieRequestResponse {
+  data: MovieRequest[];
+}
+
+export interface CreateMovieRequestResponse {
+  data: MovieRequest;
+  message: string;
+}
+
 class APIService {
   private baseURL: string;
 
   constructor() {
     this.baseURL = import.meta.env.VITE_API_URL || "http://localhost:3001/api";
+  }
+
+  // Méthode pour obtenir le token d'authentification
+  private getAuthToken(): string | null {
+    return localStorage.getItem("authToken");
+  }
+
+  // Méthode pour vérifier si l'utilisateur est connecté
+  isAuthenticated(): boolean {
+    return !!this.getAuthToken();
+  }
+
+  // Méthode pour déconnecter l'utilisateur
+  logout(): void {
+    localStorage.removeItem("authToken");
+    localStorage.removeItem("user");
   }
 
   private async request<T>(
@@ -68,14 +108,25 @@ class APIService {
   ): Promise<T> {
     const url = `${this.baseURL}${endpoint}`;
 
+    // Ajouter automatiquement le token d'authentification si disponible
+    const authToken = this.getAuthToken();
+    const headers = {
+      "Content-Type": "application/json",
+      ...(authToken && { Authorization: `Bearer ${authToken}` }),
+      ...options?.headers,
+    };
+
     try {
       const response = await fetch(url, {
-        headers: {
-          "Content-Type": "application/json",
-          ...options?.headers,
-        },
+        headers,
         ...options,
       });
+
+      if (response.status === 401) {
+        // Token expiré ou invalide
+        this.logout();
+        throw new Error("Session expirée. Veuillez vous reconnecter.");
+      }
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -139,6 +190,40 @@ class APIService {
   // Récupérer un film par ID
   async getMovieById(id: number): Promise<{ data: { movie: APIMovie } }> {
     return this.request<{ data: { movie: APIMovie } }>(`/movies/${id}`);
+  }
+
+  // === MÉTHODES POUR LES DEMANDES DE FILMS ===
+
+  // Créer une nouvelle demande de film
+  async createMovieRequest(data: {
+    title: string;
+    comment?: string;
+  }): Promise<CreateMovieRequestResponse> {
+    return this.request("/movie-requests", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  // Récupérer les demandes de l'utilisateur connecté
+  async getUserMovieRequests(): Promise<MovieRequestResponse> {
+    return this.request("/movie-requests/my-requests");
+  }
+
+  // Récupérer toutes les demandes (admin)
+  async getAllMovieRequests(): Promise<MovieRequestResponse> {
+    return this.request("/movie-requests");
+  }
+
+  // Mettre à jour le statut d'une demande
+  async updateMovieRequestStatus(
+    id: number,
+    status: string
+  ): Promise<CreateMovieRequestResponse> {
+    return this.request(`/movie-requests/${id}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    });
   }
 }
 
