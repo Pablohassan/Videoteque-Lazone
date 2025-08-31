@@ -1,5 +1,5 @@
 import { MovieCard } from "@/components/ui/movie-card";
-import { Movie } from "@/data/mockMovies";
+import { Movie } from "@/types/movie";
 
 interface MovieGridProps {
   movies: Movie[];
@@ -15,7 +15,7 @@ export function MovieGrid({ movies, title, onMovieClick }: MovieGridProps) {
           {title}
         </h2>
       )}
-      
+
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
         {movies.map((movie) => (
           <MovieCard

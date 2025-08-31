@@ -6,15 +6,16 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model User {
   id        Int      @id @default(autoincrement())
   email     String   @unique
   name      String
-  password  String   // Hash du mot de passe
+  password  String // Hash du mot de passe
   createdAt DateTime @default(now())
   reviews   Review[]
 
@@ -22,51 +23,87 @@ model User {
 }
 
 model Movie {
-  id          Int      @id @default(autoincrement())
-  title       String   @unique
-  synopsis    String   @db.Text
-  posterUrl   String
-  trailerUrl  String?  // URL de la bande-annonce (ex: YouTube)
-  releaseDate DateTime
-  duration    Int      // Durée en minutes
-  isWeeklySuggestion Boolean @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                 Int      @id @default(autoincrement())
+  tmdbId             Int?     @unique // ID TMDB pour éviter les doublons
+  title              String
+  synopsis           String   @db.Text
+  posterUrl          String
+  trailerUrl         String? // URL de la bande-annonce (ex: YouTube)
+  releaseDate        DateTime
+  duration           Int // Durée en minutes
+  rating             Float? // Note TMDB (0-10)
+  isWeeklySuggestion Boolean  @default(false)
 
-  genres  Genre[]
-  actors  Actor[]
+  // Informations du fichier local
+  localPath   String? // Chemin complet du fichier
+  filename    String? // Nom du fichier
+  fileSize    BigInt? // Taille en bytes
+  resolution  String? // 1080p, 720p, etc.
+  codec       String? // x264, h265, etc.
+  container   String? // mkv, mp4, etc.
+  lastScanned DateTime? // Dernière fois scanné
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  genres  MovieGenre[]
+  actors  MovieActor[]
   reviews Review[]
 
   @@map("movies")
 }
 
 model Genre {
-  id     Int     @id @default(autoincrement())
-  name   String  @unique
-  movies Movie[]
+  id     Int          @id @default(autoincrement())
+  name   String       @unique
+  movies MovieGenre[]
 
   @@map("genres")
 }
 
 model Actor {
-  id     Int     @id @default(autoincrement())
-  name   String  @unique
-  movies Movie[]
+  id         Int          @id @default(autoincrement())
+  name       String       @unique
+  profileUrl String? // URL de la photo de profil
+  movies     MovieActor[]
 
   @@map("actors")
 }
 
+// Table de liaison Movie <-> Genre
+model MovieGenre {
+  movieId Int
+  genreId Int
+  movie   Movie @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  genre   Genre @relation(fields: [genreId], references: [id], onDelete: Cascade)
+
+  @@id([movieId, genreId])
+  @@map("movie_genres")
+}
+
+// Table de liaison Movie <-> Actor
+model MovieActor {
+  movieId   Int
+  actorId   Int
+  character String? // Nom du personnage joué
+  movie     Movie   @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  actor     Actor   @relation(fields: [actorId], references: [id], onDelete: Cascade)
+
+  @@id([movieId, actorId])
+  @@map("movie_actors")
+}
+
 model Review {
   id        Int      @id @default(autoincrement())
-  rating    Float    // Note de 1 à 5
+  rating    Float // Note de 1 à 5
   comment   String   @db.Text
   createdAt DateTime @default(now())
 
   movieId Int
   movie   Movie @relation(fields: [movieId], references: [id], onDelete: Cascade)
-  
+
   authorId Int
-  author   User  @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  author   User @relation(fields: [authorId], references: [id], onDelete: Cascade)
 
   @@unique([movieId, authorId]) // Un utilisateur ne peut avoir qu'une critique par film
   @@map("reviews")
