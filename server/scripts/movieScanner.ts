@@ -167,10 +167,13 @@ class MovieScanner {
 
     // Créer le film en base de données
     try {
+      const fullPath = path.join(this.moviesFolderPath, filename);
       await movieService.createMovie(
         fullMovie,
         movieGenres as string[],
-        actors
+        actors,
+        fullPath, // Chemin complet du fichier
+        filename // Nom du fichier
       );
 
       return {

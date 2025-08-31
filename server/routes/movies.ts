@@ -3,6 +3,7 @@ import { movieService } from "../services/movieService.js";
 import { validateParams, validateQuery } from "../middleware/validation.js";
 import { optionalAuth } from "../middleware/auth.js";
 import { movieIdSchema, moviesQuerySchema } from "../utils/schemas.js";
+import { prisma } from "../utils/prisma.js";
 
 const router = Router();
 
@@ -119,6 +120,66 @@ router.get(
       res.status(500).json({
         success: false,
         message: "Erreur lors de la récupération du film",
+      });
+    }
+  }
+);
+
+// GET /api/movies/:id/files-info
+router.get(
+  "/:id/files-info",
+  validateParams(movieIdSchema),
+  optionalAuth,
+  async (req, res) => {
+    try {
+      const movieId = parseInt(req.params.id);
+
+      // Récupérer directement les informations de fichiers depuis la base
+      const movie = await prisma.movie.findUnique({
+        where: { id: movieId },
+        select: {
+          id: true,
+          localPath: true,
+          filename: true,
+          fileSize: true,
+          resolution: true,
+          codec: true,
+          container: true,
+          lastScanned: true,
+        },
+      });
+
+      if (!movie) {
+        return res.status(404).json({
+          success: false,
+          message: "Film non trouvé",
+        });
+      }
+
+      // Détecter les sous-titres avec movieService
+      const subtitleFiles = await movieService.detectSubtitleFiles(
+        movie.localPath || ""
+      );
+
+      res.json({
+        success: true,
+        data: {
+          movieId: movie.id,
+          localPath: movie.localPath,
+          filename: movie.filename,
+          fileSize: movie.fileSize ? Number(movie.fileSize) : null,
+          resolution: movie.resolution,
+          codec: movie.codec,
+          container: movie.container,
+          lastScanned: movie.lastScanned,
+          subtitleFiles,
+        },
+      });
+    } catch (error: unknown) {
+      console.error("❌ Erreur dans /:id/files-info:", error);
+      res.status(500).json({
+        success: false,
+        message: "Erreur lors de la récupération des informations de fichiers",
       });
     }
   }

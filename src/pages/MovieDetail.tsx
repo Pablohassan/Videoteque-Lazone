@@ -10,6 +10,7 @@ import { Separator } from "../components/ui/separator";
 import { ArrowLeft, Calendar, Clock, Star, Play, Download, FileText } from "lucide-react";
 import { ReviewForm } from "../components/ReviewForm";
 import { ReviewList } from "../components/ReviewList";
+import { MovieFiles } from "../components/MovieFiles";
 import { useToast } from "../components/ui/use-toast";
 
 export default function MovieDetail() {
@@ -246,6 +247,12 @@ export default function MovieDetail() {
                         </CardContent>
                     </Card>
                 </div>
+            </div>
+
+            {/* Section des fichiers du film */}
+            <div className="mt-12">
+                <Separator className="mb-8" />
+                <MovieFiles movieId={movie.id} />
             </div>
 
             {/* Section des critiques */}

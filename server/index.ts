@@ -13,6 +13,8 @@ import movieRoutes from "./routes/movies.js";
 import reviewRoutes from "./routes/reviews.js";
 import requestRoutes from "./routes/requests.js";
 import movieRequestRoutes from "./routes/movieRequests.js";
+import fileRoutes from "./routes/files.js";
+import subtitleRoutes from "./routes/subtitles.js";
 
 // Load environment variables
 dotenv.config();
@@ -69,10 +71,10 @@ async function createServer() {
     })
   );
 
-  // Rate limiting
+  // Rate limiting - Temporairement plus permissif pour le développement
   const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // limit each IP to 100 requests per windowMs
+    windowMs: 1 * 60 * 1000, // 1 minute
+    max: 1000, // limit each IP to 1000 requests per minute
     message: "Trop de requêtes, réessayez plus tard.",
   });
   app.use("/api/", limiter);
@@ -87,6 +89,8 @@ async function createServer() {
   app.use("/api/reviews", reviewRoutes);
   app.use("/api/requests", requestRoutes);
   app.use("/api/movie-requests", movieRequestRoutes);
+  app.use("/api/files", fileRoutes);
+  app.use("/api/subtitles", subtitleRoutes);
 
   // Health check
   app.get("/api/health", (req, res) => {
