@@ -84,7 +84,7 @@ export class TMDBClient {
     return trailer ? `https://www.youtube.com/watch?v=${trailer.key}` : null;
   }
 
-  extractActors(credits: any): string[] {
+  extractActors(credits: TMDBMovie["credits"]): string[] {
     if (!credits || !credits.cast) return [];
 
     return credits.cast
