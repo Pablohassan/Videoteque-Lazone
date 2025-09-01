@@ -7,6 +7,7 @@ import { fileURLToPath } from "url";
 import dotenv from "dotenv";
 import { MovieScanner } from "./scripts/movieScanner.js";
 import { initializePassport } from "./middleware/passport-auth.js";
+import { movieWatcherService } from "./services/movieWatcherService.js";
 
 // Import routes with proper typing
 import authRoutes from "./routes/auth.js";
@@ -27,27 +28,31 @@ const NODE_ENV = process.env.NODE_ENV as "development" | "production" | "test";
 const isProduction = NODE_ENV === "production";
 const port = parseInt(process.env.PORT ?? "3001", 10);
 
-// Auto scan configuration with validation
-const AUTO_SCAN_INTERVAL = Math.max(
-  parseInt(process.env.AUTO_SCAN_INTERVAL ?? "3600000", 10),
-  60000 // Minimum 1 minute
-);
-const AUTO_SCAN_ENABLED = process.env.AUTO_SCAN_ENABLED !== "false";
+// Auto watch configuration with validation
+const AUTO_WATCH_ENABLED = process.env.AUTO_WATCH_ENABLED !== "false";
+const AUTO_INDEX_EXISTING = process.env.AUTO_INDEX_EXISTING === "true";
 
-// Auto scan function with proper error handling
-const startAutoScan = async (): Promise<void> => {
-  if (!AUTO_SCAN_ENABLED) {
-    console.log("⚠️ Auto scan disabled");
+// Auto watch function with proper error handling
+const startAutoWatch = async (): Promise<void> => {
+  if (!AUTO_WATCH_ENABLED) {
+    console.log("⚠️ Auto watch disabled");
     return;
   }
 
   try {
-    const scanner = new MovieScanner();
-    console.log("🔍 Starting auto scan...");
-    await scanner.scanFolder();
-    console.log("✅ Auto scan completed");
+    console.log("🔍 Démarrage de la surveillance automatique...");
+
+    // Indexer les fichiers existants si demandé
+    if (AUTO_INDEX_EXISTING) {
+      console.log("📁 Indexation des fichiers existants...");
+      await movieWatcherService.indexExistingFiles();
+    }
+
+    // Démarrer la surveillance
+    await movieWatcherService.start();
+    console.log("✅ Surveillance automatique démarrée");
   } catch (error) {
-    console.error("❌ Auto scan error:", error);
+    console.error("❌ Erreur lors du démarrage de la surveillance:", error);
   }
 };
 
@@ -137,7 +142,7 @@ const createServer = async (): Promise<void> => {
     "/api/scan-now",
     async (req: Request, res: Response): Promise<void> => {
       try {
-        await startAutoScan();
+        await movieWatcherService.indexExistingFiles();
         res.status(200).json({
           success: true,
           message: "Scan started successfully",
@@ -151,6 +156,15 @@ const createServer = async (): Promise<void> => {
       }
     }
   );
+
+  // Watcher status endpoint
+  app.get("/api/watcher/status", (req: Request, res: Response): void => {
+    const stats = movieWatcherService.getStats();
+    res.status(200).json({
+      success: true,
+      data: stats,
+    });
+  });
 
   // Static file serving for production
   if (isProduction) {
@@ -174,31 +188,32 @@ const createServer = async (): Promise<void> => {
       `🔒 Security: ${isProduction ? "Production mode" : "Development mode"}`
     );
 
-    // Start auto scan if enabled
-    if (AUTO_SCAN_ENABLED) {
-      console.log(
-        `⏰ Auto scan configured every ${AUTO_SCAN_INTERVAL / 60000} minutes`
-      );
+    // Start auto watch if enabled
+    if (AUTO_WATCH_ENABLED) {
+      console.log("👀 Surveillance automatique activée");
 
-      // Initial scan
-      startAutoScan();
+      if (AUTO_INDEX_EXISTING) {
+        console.log("📁 Indexation des fichiers existants activée");
+      }
 
-      // Schedule recurring scans
-      setInterval(startAutoScan, AUTO_SCAN_INTERVAL);
+      // Démarrer la surveillance automatique
+      startAutoWatch();
     }
   });
 
   // Graceful shutdown handling
-  process.on("SIGTERM", () => {
+  process.on("SIGTERM", async () => {
     console.log("📴 SIGTERM received, shutting down gracefully");
+    await movieWatcherService.stop();
     server.close(() => {
       console.log("✅ Server closed");
       process.exit(0);
     });
   });
 
-  process.on("SIGINT", () => {
+  process.on("SIGINT", async () => {
     console.log("📴 SIGINT received, shutting down gracefully");
+    await movieWatcherService.stop();
     server.close(() => {
       console.log("✅ Server closed");
       process.exit(0);

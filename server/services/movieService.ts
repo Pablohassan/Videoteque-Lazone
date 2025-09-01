@@ -1,7 +1,7 @@
 import { prisma } from "../utils/prisma.js";
 import { createTMDBClient } from "../utils/tmdb.js";
 import { TMDBMovie } from "../types/index.js";
-import * as fs from "fs-extra";
+import fs from "fs/promises";
 import * as path from "path";
 import type {
   Movie,
@@ -343,7 +343,7 @@ export class MovieService {
       if (!moviePath) return [];
 
       const movieDir = path.dirname(moviePath);
-      const items = await fs.readdir(movieDir, { withFileTypes: true });
+      const items = await fs.readdir(movieDir);
 
       const subtitleFiles: Array<{
         path: string;
@@ -353,24 +353,31 @@ export class MovieService {
       }> = [];
 
       for (const item of items) {
-        if (item.isFile()) {
-          const ext = path.extname(item.name).toLowerCase();
-          if (this.subtitleExtensions.includes(ext)) {
-            const fullPath = path.join(movieDir, item.name);
+        const fullPath = path.join(movieDir, item);
+        const ext = path.extname(item).toLowerCase();
+
+        if (this.subtitleExtensions.includes(ext)) {
+          try {
             const stats = await fs.stat(fullPath);
 
-            // Détecter la langue basée sur le nom du fichier et le contenu
-            const language = await this.detectLanguageFromFilename(
-              item.name,
-              fullPath
-            );
+            // Vérifier que c'est bien un fichier (pas un dossier)
+            if (stats.isFile()) {
+              // Détecter la langue basée sur le nom du fichier et le contenu
+              const language = await this.detectLanguageFromFilename(
+                item,
+                fullPath
+              );
 
-            subtitleFiles.push({
-              path: fullPath,
-              filename: item.name,
-              language,
-              size: stats.size,
-            });
+              subtitleFiles.push({
+                path: fullPath,
+                filename: item,
+                language,
+                size: stats.size,
+              });
+            }
+          } catch (statError) {
+            // Ignorer les erreurs de stat (fichier inaccessible, etc.)
+            console.warn(`⚠️ Impossible d'accéder à ${fullPath}:`, statError);
           }
         }
       }

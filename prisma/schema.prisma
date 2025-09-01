@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -15,63 +12,54 @@ model User {
   id            Int            @id @default(autoincrement())
   email         String         @unique
   name          String
-  password      String // Hash du mot de passe
-  role          UserRole       @default(USER)
+  password      String
+  createdAt     DateTime       @default(now())
   isActive      Boolean        @default(true)
   lastLoginAt   DateTime?
-  createdAt     DateTime       @default(now())
+  role          UserRole       @default(USER)
   updatedAt     DateTime       @default(now())
-  reviews       Review[]
+  adminActions  AdminAction[]
   movieRequests MovieRequest[]
-  adminActions  AdminAction[] // Actions administratives effectuées par cet admin
+  reviews       Review[]
 
   @@map("users")
 }
 
-enum UserRole {
-  USER
-  ADMIN
-}
-
 model AdminAction {
   id           Int      @id @default(autoincrement())
-  action       String // Type d'action (CREATE_USER, RESET_PASSWORD, DELETE_USER, etc.)
-  targetUserId Int? // ID de l'utilisateur ciblé par l'action
-  details      String?  @db.Text // Détails de l'action
-  adminId      Int // ID de l'admin qui a effectué l'action
-  admin        User     @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  action       String
+  targetUserId Int?
+  details      String?
+  adminId      Int
   createdAt    DateTime @default(now())
+  admin        User     @relation(fields: [adminId], references: [id], onDelete: Cascade)
 
   @@map("admin_actions")
 }
 
 model Movie {
-  id                 Int      @id @default(autoincrement())
-  tmdbId             Int?     @unique // ID TMDB pour éviter les doublons
+  id                 Int          @id @default(autoincrement())
+  tmdbId             Int?         @unique
   title              String
-  synopsis           String   @db.Text
+  synopsis           String
   posterUrl          String
-  trailerUrl         String? // URL de la bande-annonce (ex: YouTube)
+  trailerUrl         String?
   releaseDate        DateTime
-  duration           Int // Durée en minutes
-  rating             Float? // Note TMDB (0-10)
-  isWeeklySuggestion Boolean  @default(false)
-
-  // Informations du fichier local
-  localPath   String? // Chemin complet du fichier
-  filename    String? // Nom du fichier
-  fileSize    BigInt? // Taille en bytes
-  resolution  String? // 1080p, 720p, etc.
-  codec       String? // x264, h265, etc.
-  container   String? // mkv, mp4, etc.
-  lastScanned DateTime? // Dernière fois scanné
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  genres  MovieGenre[]
-  actors  MovieActor[]
-  reviews Review[]
+  duration           Int
+  rating             Float?
+  isWeeklySuggestion Boolean      @default(false)
+  localPath          String?
+  filename           String?
+  resolution         String?
+  codec              String?
+  container          String?
+  lastScanned        DateTime?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  fileSize           BigInt?
+  actors             MovieActor[]
+  genres             MovieGenre[]
+  reviews            Review[]
 
   @@map("movies")
 }
@@ -87,30 +75,28 @@ model Genre {
 model Actor {
   id         Int          @id @default(autoincrement())
   name       String       @unique
-  profileUrl String? // URL de la photo de profil
+  profileUrl String?
   movies     MovieActor[]
 
   @@map("actors")
 }
 
-// Table de liaison Movie <-> Genre
 model MovieGenre {
   movieId Int
   genreId Int
-  movie   Movie @relation(fields: [movieId], references: [id], onDelete: Cascade)
   genre   Genre @relation(fields: [genreId], references: [id], onDelete: Cascade)
+  movie   Movie @relation(fields: [movieId], references: [id], onDelete: Cascade)
 
   @@id([movieId, genreId])
   @@map("movie_genres")
 }
 
-// Table de liaison Movie <-> Actor
 model MovieActor {
   movieId   Int
   actorId   Int
-  character String? // Nom du personnage joué
-  movie     Movie   @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  character String?
   actor     Actor   @relation(fields: [actorId], references: [id], onDelete: Cascade)
+  movie     Movie   @relation(fields: [movieId], references: [id], onDelete: Cascade)
 
   @@id([movieId, actorId])
   @@map("movie_actors")
@@ -118,31 +104,32 @@ model MovieActor {
 
 model Review {
   id        Int      @id @default(autoincrement())
-  rating    Float // Note de 1 à 5
-  comment   String   @db.Text
+  rating    Float
+  comment   String
   createdAt DateTime @default(now())
+  movieId   Int
+  authorId  Int
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  movie     Movie    @relation(fields: [movieId], references: [id], onDelete: Cascade)
 
-  movieId Int
-  movie   Movie @relation(fields: [movieId], references: [id], onDelete: Cascade)
-
-  authorId Int
-  author   User @relation(fields: [authorId], references: [id], onDelete: Cascade)
-
-  @@unique([movieId, authorId]) // Un utilisateur ne peut avoir qu'une critique par film
+  @@unique([movieId, authorId])
   @@map("reviews")
 }
 
 model MovieRequest {
   id          Int      @id @default(autoincrement())
   title       String
-  comment     String?  @db.Text // Commentaire de l'utilisateur
-  status      String   @default("pending") // pending, processing, available
+  comment     String?
   requestedAt DateTime @default(now())
+  status      String   @default("pending")
   updatedAt   DateTime @updatedAt
-
-  // Relation avec l'utilisateur qui a fait la demande
-  userId Int
-  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("movie_requests")
+}
+
+enum UserRole {
+  USER
+  ADMIN
 }

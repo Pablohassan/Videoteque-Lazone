@@ -3,11 +3,13 @@ import path from "path";
 import ptt from "parse-torrent-title";
 import { createTMDBClient } from "../utils/tmdb.js";
 import { prisma } from "../utils/prisma.js";
-import dotenv from "dotenv";
-import type { TMDBMovie, Movie } from "../types/index.js";
-
-// Charger .env depuis la racine du projet
-dotenv.config({ path: path.resolve(process.cwd(), ".env") });
+import type {
+  TMDBMovie,
+  Movie,
+  MovieScanResult,
+  ParsedMovie,
+  IndexResult
+} from "../types/index.js";
 
 interface ParsedMovie {
   filename: string;
@@ -24,12 +26,16 @@ interface ParsedMovie {
 interface IndexResult {
   parsed: ParsedMovie;
   tmdbMatch?: TMDBMovie;
-  dbMovie?: Movie; // Prisma Movie type
+  dbMovie?: Movie;
   success: boolean;
   error?: string;
 }
 
-class MovieAutoIndexer {
+/**
+ * Service unifié pour l'indexation automatique des films
+ * Combine la logique de scan, parsing, recherche TMDB et sauvegarde en base
+ */
+export class MovieIndexingService {
   private supportedExtensions = [
     ".mp4",
     ".mkv",
@@ -40,19 +46,28 @@ class MovieAutoIndexer {
     ".webm",
     ".m4v",
   ];
+
   private moviesFolderPath: string;
   private tmdbClient: ReturnType<typeof createTMDBClient>;
 
   constructor(moviesFolderPath?: string) {
     const folderPath =
       moviesFolderPath || process.env.MOVIES_FOLDER_PATH || "./movies";
+
     // Résoudre le ~ en chemin absolu
     this.moviesFolderPath = folderPath.replace(/^~/, process.env.HOME || "");
-    // Initialiser le client TMDB après chargement des variables d'environnement
+
+    // Initialiser le client TMDB
     this.tmdbClient = createTMDBClient();
   }
 
-  // Scanner récursivement un dossier
+  // ========================================================================
+  // MÉTHODES DE SCAN ET PARSING
+  // ========================================================================
+
+  /**
+   * Scanner récursivement un dossier pour trouver les fichiers de films
+   */
   async scanDirectory(dirPath: string): Promise<ParsedMovie[]> {
     const movies: ParsedMovie[] = [];
 
@@ -105,22 +120,97 @@ class MovieAutoIndexer {
     return movies;
   }
 
-  // Rechercher un film sur TMDB avec plusieurs stratégies
+  /**
+   * Scanner un dossier plat (version simplifiée)
+   */
+  async scanFlatDirectory(dirPath: string): Promise<ParsedMovie[]> {
+    const movies: ParsedMovie[] = [];
+
+    try {
+      const files = fs.readdirSync(dirPath);
+
+      for (const filename of files) {
+        const ext = path.extname(filename).toLowerCase();
+
+        if (this.supportedExtensions.includes(ext)) {
+          const fullPath = path.join(dirPath, filename);
+          const stats = fs.statSync(fullPath);
+
+          // Parser le nom du fichier
+          const parsed = ptt.parse(filename);
+
+          if (parsed.title && parsed.title.length >= 2) {
+            movies.push({
+              filename,
+              filepath: fullPath,
+              title: parsed.title,
+              year: parsed.year,
+              resolution: parsed.resolution,
+              codec: parsed.codec,
+              container: parsed.container,
+              size: stats.size,
+              lastModified: stats.mtime,
+            });
+          }
+        }
+      }
+    } catch (error) {
+      console.error(`Erreur lors du scan plat de ${dirPath}:`, error);
+    }
+
+    return movies;
+  }
+
+  // ========================================================================
+  // MÉTHODES DE NETTOYAGE ET FORMATAGE
+  // ========================================================================
+
+  /**
+   * Nettoyer et normaliser le titre du film
+   */
+  private cleanTitle(title: string): string {
+    return title
+      .replace(/[._-]/g, " ")
+      .replace(
+        /\b(720p|1080p|2160p|4k|hd|dvdrip|brrip|webrip|hdtv|bluray|web|dl)\b/gi,
+        ""
+      )
+      .replace(/\b(x264|x265|h264|h265|xvid|divx)\b/gi, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  /**
+   * Nettoyer le titre pour la recherche TMDB
+   */
+  private cleanTitleForSearch(title: string): string {
+    return title
+      .replace(/[^\w\s]/g, " ") // Enlever la ponctuation
+      .replace(/\s+/g, " ") // Réduire les espaces
+      .trim();
+  }
+
+  // ========================================================================
+  // MÉTHODES DE RECHERCHE TMDB
+  // ========================================================================
+
+  /**
+   * Rechercher un film sur TMDB avec plusieurs stratégies
+   */
   async findOnTMDB(movie: ParsedMovie): Promise<TMDBMovie | null> {
     try {
+      const cleanTitle = this.cleanTitleForSearch(movie.title);
+
       // Stratégie 1: Titre + année
       if (movie.year) {
-        const results = await this.tmdbClient.searchMovie(
-          movie.title,
-          movie.year
-        );
+        const results = await this.tmdbClient.searchMovie(cleanTitle, movie.year);
         if (results.length > 0) {
           return results[0];
         }
       }
 
       // Stratégie 2: Titre seul
-      const results = await this.tmdbClient.searchMovie(movie.title);
+      const results = await this.tmdbClient.searchMovie(cleanTitle);
       if (results.length > 0) {
         // Si on a une année, essayer de trouver une correspondance
         if (movie.year) {
@@ -134,15 +224,11 @@ class MovieAutoIndexer {
         return results[0];
       }
 
-      // Stratégie 3: Nettoyer le titre et réessayer
-      const cleanTitle = movie.title
-        .replace(/[^\w\s]/g, " ") // Enlever la ponctuation
-        .replace(/\s+/g, " ") // Réduire les espaces
-        .trim();
-
-      if (cleanTitle !== movie.title) {
+      // Stratégie 3: Titre nettoyé supplémentaire
+      const extraCleanTitle = this.cleanTitle(cleanTitle);
+      if (extraCleanTitle !== cleanTitle) {
         const cleanResults = await this.tmdbClient.searchMovie(
-          cleanTitle,
+          extraCleanTitle,
           movie.year
         );
         if (cleanResults.length > 0) {
@@ -157,14 +243,19 @@ class MovieAutoIndexer {
     }
   }
 
-  // Sauvegarder ou mettre à jour un film en base
+  // ========================================================================
+  // MÉTHODES DE SAUVEGARDE EN BASE
+  // ========================================================================
+
+  /**
+   * Sauvegarder ou mettre à jour un film en base de données
+   */
   async saveToDatabase(
     parsedMovie: ParsedMovie,
     tmdbMovie: TMDBMovie
   ): Promise<Movie> {
-    // Returns Prisma Movie
     try {
-      // Récupérer les détails complets du film
+      // Récupérer les détails complets du film depuis TMDB
       const fullTmdbMovie = await this.tmdbClient.getMovie(tmdbMovie.id);
       if (!fullTmdbMovie) {
         throw new Error("Impossible de récupérer les détails TMDB");
@@ -276,7 +367,110 @@ class MovieAutoIndexer {
     }
   }
 
-  // Indexer tous les films du dossier
+  // ========================================================================
+  // MÉTHODES PRINCIPALES D'INDEXATION
+  // ========================================================================
+
+  /**
+   * Indexer un seul fichier de film
+   */
+  async indexSingleFile(filepath: string): Promise<MovieScanResult> {
+    try {
+      const filename = path.basename(filepath);
+      const ext = path.extname(filename).toLowerCase();
+
+      // Vérifier que c'est un fichier vidéo supporté
+      if (!this.supportedExtensions.includes(ext)) {
+        return {
+          filename,
+          title: "",
+          success: false,
+          error: "Extension non supportée",
+        };
+      }
+
+      const stats = fs.statSync(filepath);
+      const parsed = ptt.parse(filename);
+
+      if (!parsed.title) {
+        return {
+          filename,
+          title: "",
+          success: false,
+          error: "Impossible d'extraire le titre du fichier",
+        };
+      }
+
+      const cleanTitle = this.cleanTitle(parsed.title);
+
+      // Vérifier si le film existe déjà en base
+      const existingMovie = await prisma.movie.findFirst({
+        where: {
+          title: {
+            equals: cleanTitle,
+            mode: "insensitive",
+          },
+        },
+      });
+
+      if (existingMovie) {
+        return {
+          filename,
+          title: cleanTitle,
+          year: parsed.year,
+          success: false,
+          error: "Film déjà présent en base de données",
+        };
+      }
+
+      const parsedMovie: ParsedMovie = {
+        filename,
+        filepath,
+        title: cleanTitle,
+        year: parsed.year,
+        resolution: parsed.resolution,
+        codec: parsed.codec,
+        container: parsed.container,
+        size: stats.size,
+        lastModified: stats.mtime,
+      };
+
+      // Rechercher sur TMDB
+      const tmdbMatch = await this.findOnTMDB(parsedMovie);
+
+      if (!tmdbMatch) {
+        return {
+          filename,
+          title: cleanTitle,
+          year: parsed.year,
+          success: false,
+          error: "Film non trouvé sur TMDB",
+        };
+      }
+
+      // Sauvegarder en base
+      const dbMovie = await this.saveToDatabase(parsedMovie, tmdbMatch);
+
+      return {
+        filename,
+        title: cleanTitle,
+        year: new Date(tmdbMatch.release_date).getFullYear(),
+        success: true,
+      };
+    } catch (error) {
+      console.error(`❌ Erreur lors de l'indexation de ${filepath}:`, error);
+      return {
+        filename: path.basename(filepath),
+        title: "",
+        success: false,
+        error: error instanceof Error ? error.message : "Erreur inconnue",
+      };
+    }
+  }
+
+  /**
+   * Indexer tous les films du dossier (version récursive)
+   */
   async indexAllMovies(): Promise<IndexResult[]> {
     console.log(`🎬 Début de l'indexation depuis: ${this.moviesFolderPath}`);
 
@@ -365,33 +559,76 @@ class MovieAutoIndexer {
 
     return results;
   }
-}
 
-// Script principal
-async function main() {
-  const moviesFolderPath = process.argv[2] || process.env.MOVIES_FOLDER_PATH;
+  /**
+   * Indexer tous les films du dossier (version plate)
+   */
+  async indexAllMoviesFlat(): Promise<MovieScanResult[]> {
+    console.log(`🎬 Début du scan depuis: ${this.moviesFolderPath}`);
 
-  if (!moviesFolderPath) {
-    console.error("❌ Veuillez spécifier le chemin du dossier de films:");
-    console.error("   npm run index-movies /path/to/movies");
-    console.error("   ou définir MOVIES_FOLDER_PATH dans .env");
-    process.exit(1);
+    try {
+      const files = await fs.readdirSync(this.moviesFolderPath);
+      console.log(`📁 ${files.length} fichiers trouvés`);
+
+      const results: MovieScanResult[] = [];
+
+      for (const filename of files) {
+        const result = await this.indexSingleFile(path.join(this.moviesFolderPath, filename));
+        results.push(result);
+
+        if (result.success) {
+          console.log(
+            `✅ ${result.filename} -> ${result.title} (${result.year || "N/A"})`
+          );
+        } else {
+          console.log(`❌ ${result.filename} -> ${result.error}`);
+        }
+
+        // Pause courte pour éviter de surcharger l'API TMDB
+        await new Promise((resolve) => setTimeout(resolve, 300));
+      }
+
+      this.printScanSummary(results);
+      return results;
+    } catch (error) {
+      console.error("❌ Erreur lors du scan du dossier:", error);
+      throw error;
+    }
   }
 
-  try {
-    const indexer = new MovieAutoIndexer(moviesFolderPath);
-    await indexer.indexAllMovies();
-  } catch (error) {
-    console.error("❌ Erreur fatale:", error);
-    process.exit(1);
-  } finally {
-    await prisma.$disconnect();
+  // ========================================================================
+  // MÉTHODES UTILITAIRES
+  // ========================================================================
+
+  /**
+   * Afficher un résumé du scan
+   */
+  private printScanSummary(results: MovieScanResult[]): void {
+    const successful = results.filter((r) => r.success).length;
+    const failed = results.filter((r) => !r.success).length;
+
+    console.log("\n📊 Résumé du scan:");
+    console.log(`✅ Films ajoutés avec succès: ${successful}`);
+    console.log(`❌ Films non traités: ${failed}`);
+    console.log(`📁 Total de fichiers scannés: ${results.length}`);
+
+    if (failed > 0) {
+      console.log("\n❌ Échecs détaillés:");
+      results
+        .filter((r) => !r.success)
+        .forEach((result) => {
+          console.log(`  - ${result.filename}: ${result.error}`);
+        });
+    }
+  }
+
+  /**
+   * Obtenir le chemin du dossier de films
+   */
+  getMoviesFolderPath(): string {
+    return this.moviesFolderPath;
   }
 }
 
-// Lancer le script si appelé directement
-if (import.meta.url === `file://${process.argv[1]}`) {
-  main();
-}
-
-export { MovieAutoIndexer };
+// Instance singleton du service
+export const movieIndexingService = new MovieIndexingService();
