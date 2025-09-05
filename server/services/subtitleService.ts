@@ -1,4 +1,4 @@
-import * as fs from "fs-extra";
+import fs from "fs-extra";
 import * as path from "path";
 import type { Movie } from "@prisma/client";
 
@@ -13,7 +13,7 @@ export class SubtitleService {
       const srtContent = await fs.readFile(srtPath, "utf-8");
       return this.parseSrtToVtt(srtContent);
     } catch (error) {
-      console.error(`Erreur lors de la conversion SRT vers VTT: ${error}`);
+      console.error(`Erreur lors de la conversion SRT vers VTT:`, error);
       throw error;
     }
   }

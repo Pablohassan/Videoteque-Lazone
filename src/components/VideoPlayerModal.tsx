@@ -1,13 +1,21 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
 import { Button } from "./ui/button";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Badge } from "./ui/badge";
-import { Download, ExternalLink, AlertTriangle, Info, PlayCircle } from "lucide-react";
+import { Download, ExternalLink, AlertTriangle, Info, PlayCircle, Settings, Subtitles } from "lucide-react";
 import {
     VideoPlayer,
     VideoPlayerContent,
 } from "./ui/shadcn-io/video-player";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+    DropdownMenuSeparator,
+    DropdownMenuLabel,
+} from "./ui/dropdown-menu";
 
 interface VideoPlayerModalProps {
     isOpen: boolean;
@@ -20,6 +28,15 @@ interface VideoPlayerModalProps {
     filename?: string;
     codec?: string;
     container?: string;
+}
+
+interface SubtitleTrack {
+    id: string;
+    index: number;
+    language: string;
+    label: string;
+    kind: 'subtitles' | 'captions' | 'descriptions';
+    mode: 'disabled' | 'hidden' | 'showing';
 }
 
 export function VideoPlayerModal({
@@ -38,6 +55,9 @@ export function VideoPlayerModal({
     const [isLargeFile, setIsLargeFile] = useState(false);
     const [isAC3File, setIsAC3File] = useState(false);
     const [showAC3Warning, setShowAC3Warning] = useState(false);
+    const [embeddedSubtitles, setEmbeddedSubtitles] = useState<SubtitleTrack[]>([]);
+    const [currentSubtitleTrack, setCurrentSubtitleTrack] = useState<number | null>(null);
+    const videoRef = useRef<HTMLVideoElement>(null);
 
     // Détection automatique des fichiers volumineux (> 2GB) et AC3
     useEffect(() => {
@@ -62,8 +82,64 @@ export function VideoPlayerModal({
         if (!isOpen) {
             setShowWarning(false);
             setShowAC3Warning(false);
+            setEmbeddedSubtitles([]);
+            setCurrentSubtitleTrack(null);
         }
     }, [isOpen]);
+
+    // Détection des pistes de sous-titres intégrées
+    const handleVideoLoad = () => {
+        if (videoRef.current) {
+            const video = videoRef.current;
+            const tracks: SubtitleTrack[] = [];
+
+            // Parcourir toutes les pistes de texte
+            for (let i = 0; i < video.textTracks.length; i++) {
+                const track = video.textTracks[i];
+                if (track.kind === 'subtitles' || track.kind === 'captions') {
+                    tracks.push({
+                        id: `track-${i}`,
+                        index: i,
+                        language: track.language || 'unknown',
+                        label: track.label || `Sous-titres ${i + 1}`,
+                        kind: track.kind as 'subtitles' | 'captions',
+                        mode: track.mode,
+                    });
+                }
+            }
+
+            setEmbeddedSubtitles(tracks);
+
+            // Activer automatiquement la première piste de sous-titres si disponible
+            if (tracks.length > 0 && video.textTracks.length > 0) {
+                const firstTrack = video.textTracks[tracks[0].index];
+                if (firstTrack) {
+                    firstTrack.mode = 'showing';
+                    setCurrentSubtitleTrack(tracks[0].index);
+                }
+            }
+        }
+    };
+
+    // Gestion du changement de piste de sous-titres
+    const handleSubtitleChange = (trackIndex: number | null) => {
+        if (videoRef.current) {
+            const video = videoRef.current;
+
+            // Désactiver toutes les pistes
+            for (let i = 0; i < video.textTracks.length; i++) {
+                video.textTracks[i].mode = 'disabled';
+            }
+
+            // Activer la piste sélectionnée
+            if (trackIndex !== null && video.textTracks[trackIndex]) {
+                video.textTracks[trackIndex].mode = 'showing';
+                setCurrentSubtitleTrack(trackIndex);
+            } else {
+                setCurrentSubtitleTrack(null);
+            }
+        }
+    };
 
     const formatFileSize = (bytes: number): string => {
         if (bytes === 0) return "0 B";
@@ -113,6 +189,12 @@ export function VideoPlayerModal({
                             <Badge variant="secondary" className="text-xs">
                                 <Info className="h-3 w-3 mr-1" />
                                 AC3 Audio
+                            </Badge>
+                        )}
+                        {embeddedSubtitles.length > 0 && (
+                            <Badge variant="default" className="text-xs">
+                                <Subtitles className="h-3 w-3 mr-1" />
+                                {embeddedSubtitles.length} Sous-titres
                             </Badge>
                         )}
                     </DialogTitle>
@@ -225,10 +307,12 @@ export function VideoPlayerModal({
                     {/* Lecteur vidéo avec contrôles natifs uniquement */}
                     <VideoPlayer className="w-full aspect-video">
                         <VideoPlayerContent
+                            ref={videoRef}
                             src={videoUrl}
                             controls
                             className="w-full h-full"
                             crossOrigin="anonymous"
+                            onLoadedMetadata={handleVideoLoad}
                         >
                             {/* Intégration des sous-titres HTML5 native */}
                             {subtitleFiles && subtitleFiles.map((subtitle, index) => (
@@ -243,6 +327,16 @@ export function VideoPlayerModal({
                             ))}
                         </VideoPlayerContent>
                     </VideoPlayer>
+
+                    {/* Indicateur de sous-titres intégrés */}
+                    {embeddedSubtitles.length > 0 && (
+                        <div className="absolute top-4 left-4">
+                            <Badge variant="secondary" className="bg-black bg-opacity-50 text-white border-white border">
+                                <Subtitles className="h-3 w-3 mr-1" />
+                                CC
+                            </Badge>
+                        </div>
+                    )}
 
                     {/* Bouton de téléchargement permanent pour les gros fichiers et AC3 */}
                     {(isLargeFile || isAC3File) && (!showWarning && !showAC3Warning) && (

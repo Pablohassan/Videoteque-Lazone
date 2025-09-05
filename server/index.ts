@@ -8,6 +8,7 @@ import dotenv from "dotenv";
 import { MovieScanner } from "./scripts/movieScanner.js";
 import { initializePassport } from "./middleware/passport-auth.js";
 import { movieWatcherService } from "./services/movieWatcherService.js";
+import { movieIndexingService } from "./services/movieIndexingService.js";
 
 // Import routes with proper typing
 import authRoutes from "./routes/auth.js";
@@ -20,7 +21,17 @@ import subtitleRoutes from "./routes/subtitles.js";
 import adminRoutes from "./routes/admin.js";
 
 // Load environment variables
-dotenv.config();
+dotenv.config({ path: path.resolve(process.cwd(), ".env") });
+
+// Réinitialiser le TMDBClient avec les nouvelles variables d'environnement
+movieIndexingService.reinitializeTMDBClient();
+
+// Mettre à jour la configuration du MovieWatcherService avec les nouvelles variables d'environnement
+if (process.env.MOVIES_FOLDER_PATH) {
+  movieWatcherService.updateConfiguration({
+    watchPath: process.env.MOVIES_FOLDER_PATH,
+  });
+}
 
 // Environment configuration with strict typing
 const __dirname = path.dirname(fileURLToPath(import.meta.url));

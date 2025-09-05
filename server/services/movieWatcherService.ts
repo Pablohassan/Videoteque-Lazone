@@ -1,4 +1,4 @@
-import chokidar from "chokidar";
+import chokidar, { FSWatcher } from "chokidar";
 import path from "path";
 import fs from "fs";
 import { movieIndexingService } from "./movieIndexingService.js";
@@ -19,7 +19,7 @@ interface WatcherOptions {
  * Utilise Chokidar pour détecter les nouveaux fichiers et les indexer automatiquement
  */
 export class MovieWatcherService {
-  private watcher: chokidar.FSWatcher | null = null;
+  private watcher: FSWatcher | null = null;
   private isRunning = false;
   private processingQueue = new Set<string>();
   private debounceTimers = new Map<string, NodeJS.Timeout>();
@@ -72,7 +72,7 @@ export class MovieWatcherService {
       console.log(`   ⏱️  Délai anti-rebond: ${this.options.debounceMs}ms`);
 
       // Configuration de Chokidar
-      const watcherOptions: chokidar.WatchOptions = {
+      const watcherOptions = {
         persistent: true,
         ignoreInitial: true, // Ne pas traiter les fichiers existants au démarrage
         awaitWriteFinish: {
@@ -149,6 +149,33 @@ export class MovieWatcherService {
   }
 
   /**
+   * Mettre à jour la configuration du service (utile après chargement des variables d'environnement)
+   */
+  updateConfiguration(newOptions: Partial<WatcherOptions>): void {
+    const updatedOptions = { ...this.options, ...newOptions };
+
+    // Si le chemin a changé, redémarrer la surveillance
+    if (
+      newOptions.watchPath &&
+      newOptions.watchPath !== this.options.watchPath
+    ) {
+      console.log(
+        `🔄 Reconfiguration du dossier surveillé: ${newOptions.watchPath}`
+      );
+      this.options = { ...this.options, ...updatedOptions };
+
+      // Redémarrer si le service est en cours d'exécution
+      if (this.isRunning) {
+        this.stop().then(() => {
+          this.start();
+        });
+      }
+    } else {
+      this.options = { ...this.options, ...updatedOptions };
+    }
+  }
+
+  /**
    * Obtenir les statistiques de surveillance
    */
   getStats(): {
@@ -222,7 +249,7 @@ export class MovieWatcherService {
    */
   private scheduleFileProcessing(
     filepath: string,
-    eventType: "added" | "changed"
+    eventType: "added" | "changed" | "manual"
   ): void {
     // Annuler le timer existant pour ce fichier
     const existingTimer = this.debounceTimers.get(filepath);
@@ -244,7 +271,7 @@ export class MovieWatcherService {
    */
   private async processFile(
     filepath: string,
-    eventType: "added" | "changed"
+    eventType: "added" | "changed" | "manual"
   ): Promise<void> {
     const filename = path.basename(filepath);
 

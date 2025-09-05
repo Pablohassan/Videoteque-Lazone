@@ -3,13 +3,7 @@ import path from "path";
 import ptt from "parse-torrent-title";
 import { createTMDBClient } from "../utils/tmdb.js";
 import { prisma } from "../utils/prisma.js";
-import type {
-  TMDBMovie,
-  Movie,
-  MovieScanResult,
-  ParsedMovie,
-  IndexResult
-} from "../types/index.js";
+import type { TMDBMovie, Movie, MovieScanResult } from "../types/index.js";
 
 interface ParsedMovie {
   filename: string;
@@ -203,7 +197,10 @@ export class MovieIndexingService {
 
       // Stratégie 1: Titre + année
       if (movie.year) {
-        const results = await this.tmdbClient.searchMovie(cleanTitle, movie.year);
+        const results = await this.tmdbClient.searchMovie(
+          cleanTitle,
+          movie.year
+        );
         if (results.length > 0) {
           return results[0];
         }
@@ -573,7 +570,9 @@ export class MovieIndexingService {
       const results: MovieScanResult[] = [];
 
       for (const filename of files) {
-        const result = await this.indexSingleFile(path.join(this.moviesFolderPath, filename));
+        const result = await this.indexSingleFile(
+          path.join(this.moviesFolderPath, filename)
+        );
         results.push(result);
 
         if (result.success) {
@@ -620,6 +619,13 @@ export class MovieIndexingService {
           console.log(`  - ${result.filename}: ${result.error}`);
         });
     }
+  }
+
+  /**
+   * Réinitialiser le client TMDB après chargement des variables d'environnement
+   */
+  reinitializeTMDBClient(): void {
+    this.tmdbClient = createTMDBClient();
   }
 
   /**
