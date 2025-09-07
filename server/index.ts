@@ -187,7 +187,6 @@ const createServer = async (): Promise<void> => {
     );
 
     app.get("*", (req: Request, res: Response): void => {
-      console.log(__dirname, path.join(__dirname, "../client/index.html"));
       res.sendFile(path.join(__dirname, "../client/index.html"));
     });
   }
