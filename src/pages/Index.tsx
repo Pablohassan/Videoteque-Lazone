@@ -120,7 +120,7 @@ const Index = () => {
 
             <TabsTrigger value="orders" className="flex items-center gap-2">
               <Film className="h-4 w-4" />
-              Mes Commandes
+              Films Commandés
             </TabsTrigger>
           </TabsList>
 

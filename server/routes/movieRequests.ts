@@ -18,22 +18,31 @@ router.post(
   validateBody(movieRequestSchema),
   async (req: Request, res: Response) => {
     try {
+      console.log("🎬 SERVEUR - Nouvelle demande de film reçue");
+      console.log("📝 Données reçues:", {
+        title: req.body.title,
+        comment: req.body.comment,
+      });
+      console.log("👤 Utilisateur:", (req.user as MovieRequestUser)?.id);
+
       const { title, comment } = req.body;
       const userId = (req.user as MovieRequestUser).id; // Récupéré du middleware d'authentification
 
+      console.log("🔄 Création de la demande...");
       const request = await movieRequestService.createRequest({
         title,
         comment,
         userId,
       });
 
+      console.log("✅ Demande créée avec succès:", request.id);
       res.status(201).json({
         success: true,
         message: "Demande de film créée avec succès",
         data: request,
       });
     } catch (error) {
-      console.error("Erreur lors de la création de la demande:", error);
+      console.error("❌ Erreur lors de la création de la demande:", error);
       res.status(500).json({
         success: false,
         error: "Erreur lors de la création de la demande",

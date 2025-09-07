@@ -86,6 +86,14 @@ class APIService {
     this.baseURL = import.meta.env.VITE_API_URL || "http://localhost:3001/api";
   }
 
+  // Méthode pour obtenir l'URL de base du serveur backend
+  getBaseURL(): string {
+    // Supprimer /api à la fin de l'URL si présent
+    return this.baseURL.endsWith("/api")
+      ? this.baseURL.slice(0, -4)
+      : this.baseURL;
+  }
+
   // Méthode pour obtenir le token d'authentification
   private getAuthToken(): string | null {
     return localStorage.getItem("authToken");
@@ -116,31 +124,43 @@ class APIService {
       ...options?.headers,
     };
 
+    console.log(`🌐 API Request: ${options?.method || "GET"} ${url}`);
+    console.log(`🔐 Auth header:`, !!authToken);
+
     try {
+      console.log(`📡 Fetch starting...`);
       const response = await fetch(url, {
         headers,
         ...options,
       });
 
+      console.log(`📡 Fetch completed with status: ${response.status}`);
+
       if (response.status === 401) {
+        console.log(`🚫 401 Unauthorized - Token invalide`);
         // Token expiré ou invalide
         this.logout();
         throw new Error("Session expirée. Veuillez vous reconnecter.");
       }
 
       if (!response.ok) {
+        console.log(`🚫 HTTP Error: ${response.status}`);
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
+      console.log(`📄 Parsing JSON response...`);
       const result = await response.json();
+      console.log(`📄 JSON parsed successfully`);
 
       if (!result.success) {
+        console.log(`🚫 API Error:`, result.message);
         throw new Error(result.message || "Erreur API");
       }
 
+      console.log(`✅ Request successful`);
       return result;
     } catch (error) {
-      console.error(`API Error (${endpoint}):`, error);
+      console.error(`❌ API Error (${endpoint}):`, error);
       throw error;
     }
   }
@@ -199,10 +219,29 @@ class APIService {
     title: string;
     comment?: string;
   }): Promise<CreateMovieRequestResponse> {
-    return this.request("/movie-requests", {
-      method: "POST",
-      body: JSON.stringify(data),
-    });
+    console.log("📡 API Service - Création demande film:", data);
+    const token = localStorage.getItem("authToken");
+    console.log("🔑 Token disponible:", !!token);
+    console.log("🔑 Token length:", token?.length);
+    console.log("🔑 Token preview:", token?.substring(0, 50) + "...");
+
+    try {
+      console.log("📡 Envoi de la requête fetch...");
+      const result = await this.request("/movie-requests", {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+      console.log("✅ API Service - Réponse reçue:", result);
+      return result;
+    } catch (error) {
+      console.error("❌ API Service - Erreur:", error);
+      console.error("❌ Détails de l'erreur:", {
+        message: error instanceof Error ? error.message : error,
+        name: error instanceof Error ? error.name : "Unknown",
+        stack: error instanceof Error ? error.stack : "No stack",
+      });
+      throw error;
+    }
   }
 
   // Récupérer les demandes de l'utilisateur connecté
@@ -223,6 +262,15 @@ class APIService {
     return this.request(`/movie-requests/${id}/status`, {
       method: "PATCH",
       body: JSON.stringify({ status }),
+    });
+  }
+
+  // Supprimer une demande de film
+  async deleteMovieRequest(
+    id: number
+  ): Promise<{ success: boolean; message: string }> {
+    return this.request(`/movie-requests/${id}`, {
+      method: "DELETE",
     });
   }
 }

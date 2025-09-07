@@ -5,6 +5,7 @@ import { Badge } from "./ui/badge";
 import { Download, Play, FileText, Video, Subtitles } from "lucide-react";
 import { useToast } from "./ui/use-toast";
 import { VideoPlayerModal } from "./VideoPlayerModal";
+import { apiService } from "../services/apiService";
 
 interface MovieFile {
     id: number;
@@ -134,8 +135,9 @@ export function MovieFiles({ movieId }: MovieFilesProps) {
 
     const handlePlay = (filePath: string, filename: string, displayName: string) => {
         try {
-            // Utiliser l'URL complète du backend
-            const videoUrl = `http://localhost:3001/api/files/stream/${encodeURIComponent(displayName)}?path=${encodeURIComponent(filePath)}`;
+            // Utiliser l'URL dynamique du backend via le service API
+            const baseURL = apiService.getBaseURL();
+            const videoUrl = `${baseURL}/api/files/stream/${encodeURIComponent(displayName)}?path=${encodeURIComponent(filePath)}`;
             console.log('🎬 URL de streaming:', videoUrl);
             setCurrentVideo({ url: videoUrl, title: displayName });
             setVideoPlayerOpen(true);

@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
-import { Clock, CheckCircle, Download, Film, RefreshCw, Loader2 } from 'lucide-react';
+import { Clock, CheckCircle, Download, Film, RefreshCw, Loader2, Settings, Trash2 } from 'lucide-react';
 import OrderMovieForm from './order-movie-form';
 import { useToast } from './ui/use-toast';
 import { apiService, type MovieRequest } from '../services/apiService';
@@ -30,10 +30,19 @@ export function OrderedMovies({ movies: initialMovies }: OrderedMoviesProps) {
     const [loading, setLoading] = useState(false);
     const { toast } = useToast();
 
-    const loadRequests = async () => {
+    const loadRequests = useCallback(async () => {
         setLoading(true);
         try {
-            const result = await apiService.getUserMovieRequests();
+            // Vérifier le rôle de l'utilisateur depuis le localStorage
+            const userData = localStorage.getItem('user');
+            const user = userData ? JSON.parse(userData) : null;
+            const isAdmin = user?.role === 'ADMIN';
+
+            // Si admin, charger toutes les demandes, sinon seulement celles de l'utilisateur
+            const result = isAdmin
+                ? await apiService.getAllMovieRequests()
+                : await apiService.getUserMovieRequests();
+
             setMovies(result.data);
         } catch (error) {
             console.error('Erreur lors du chargement des demandes:', error);
@@ -45,56 +54,131 @@ export function OrderedMovies({ movies: initialMovies }: OrderedMoviesProps) {
         } finally {
             setLoading(false);
         }
-    };
+    }, [toast]);
 
     useEffect(() => {
         loadRequests();
-    }, []);
+    }, [loadRequests]);
 
     const handleOrderSubmitted = () => {
         loadRequests(); // Recharger les demandes après une nouvelle commande
+    };
+
+    const handleStatusChange = async (requestId: number, newStatus: string) => {
+        try {
+            await apiService.updateMovieRequestStatus(requestId, newStatus);
+            toast({
+                title: "Statut mis à jour",
+                description: "Le statut de la demande a été modifié avec succès",
+            });
+            loadRequests(); // Recharger les demandes
+        } catch (error) {
+            console.error('Erreur lors de la mise à jour du statut:', error);
+            toast({
+                title: "Erreur",
+                description: "Impossible de mettre à jour le statut",
+                variant: "destructive",
+            });
+        }
+    };
+
+    const handleDeleteRequest = async (requestId: number) => {
+        if (!confirm('Êtes-vous sûr de vouloir supprimer cette demande ?')) {
+            return;
+        }
+
+        try {
+            await apiService.deleteMovieRequest(requestId);
+            toast({
+                title: "Demande supprimée",
+                description: "La demande a été supprimée avec succès",
+            });
+            loadRequests(); // Recharger les demandes
+        } catch (error) {
+            console.error('Erreur lors de la suppression:', error);
+            toast({
+                title: "Erreur",
+                description: "Impossible de supprimer la demande",
+                variant: "destructive",
+            });
+        }
     };
 
     const pendingMovies = movies.filter(m => m.status === 'pending');
     const processingMovies = movies.filter(m => m.status === 'processing');
     const availableMovies = movies.filter(m => m.status === 'available');
 
-    const renderMovieCard = (movie: OrderedMovie) => (
-        <Card key={movie.id} className="hover:shadow-md transition-shadow">
-            <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg font-semibold truncate">
-                        {movie.title}
-                    </CardTitle>
-                    <Badge variant={
-                        movie.status === 'pending' ? 'secondary' :
-                            movie.status === 'processing' ? 'default' :
-                                'outline'
-                    }>
-                        {movie.status === 'pending' ? 'En attente' :
-                            movie.status === 'processing' ? 'En cours' :
-                                'Disponible'}
-                    </Badge>
-                </div>
-            </CardHeader>
-            <CardContent>
-                <div className="text-sm text-muted-foreground space-y-1">
-                    <p>Demandé le {new Date(movie.requestedAt).toLocaleDateString('fr-FR')}</p>
-                    {movie.comment && (
-                        <p className="text-xs bg-muted p-2 rounded">
-                            <strong>Commentaire :</strong> {movie.comment}
-                        </p>
-                    )}
-                </div>
-            </CardContent>
-        </Card>
-    );
+    const renderMovieCard = (movie: OrderedMovie) => {
+        const userData = localStorage.getItem('user');
+        const user = userData ? JSON.parse(userData) : null;
+        const isAdmin = user?.role === 'ADMIN';
+
+        return (
+            <Card key={movie.id} className="hover:shadow-md transition-shadow">
+                <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                        <CardTitle className="text-lg font-semibold truncate">
+                            {movie.title}
+                        </CardTitle>
+                        <div className="flex items-center gap-2">
+                            <Badge variant={
+                                movie.status === 'pending' ? 'secondary' :
+                                    movie.status === 'processing' ? 'default' :
+                                        'outline'
+                            }>
+                                {movie.status === 'pending' ? 'En attente' :
+                                    movie.status === 'processing' ? 'En cours' :
+                                        'Disponible'}
+                            </Badge>
+                            {isAdmin && (
+                                <div className="flex items-center gap-1">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleStatusChange(movie.id, movie.status === 'pending' ? 'processing' : movie.status === 'processing' ? 'available' : 'pending')}
+                                        className="h-6 w-6 p-0"
+                                    >
+                                        <Settings className="h-3 w-3" />
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleDeleteRequest(movie.id)}
+                                        className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
+                                    >
+                                        <Trash2 className="h-3 w-3" />
+                                    </Button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </CardHeader>
+                <CardContent>
+                    <div className="text-sm text-muted-foreground space-y-1">
+                        <p>Demandé le {new Date(movie.requestedAt).toLocaleDateString('fr-FR')}</p>
+                        <p className="text-xs">Par {movie.user.name} ({movie.user.email})</p>
+                        {movie.comment && (
+                            <p className="text-xs bg-muted p-2 rounded">
+                                <strong>Commentaire :</strong> {movie.comment}
+                            </p>
+                        )}
+                    </div>
+                </CardContent>
+            </Card>
+        );
+    };
 
     return (
         <div className="space-y-8">
             {/* En-tête avec boutons d'action */}
             <div className="flex items-center justify-between">
-                <h1 className="text-3xl font-bold">Mes Demandes de Films</h1>
+                <h1 className="text-3xl font-bold">
+                    {(() => {
+                        const userData = localStorage.getItem('user');
+                        const user = userData ? JSON.parse(userData) : null;
+                        return user?.role === 'ADMIN' ? 'Toutes les Demandes de Films' : 'Mes Demandes de Films';
+                    })()}
+                </h1>
                 <div className="flex items-center gap-2">
                     <Button
                         variant="outline"

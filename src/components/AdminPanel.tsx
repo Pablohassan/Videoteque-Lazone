@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -78,13 +78,7 @@ export function AdminPanel() {
         role: 'USER' as 'USER' | 'ADMIN'
     });
 
-    useEffect(() => {
-        fetchUsers();
-        fetchStats();
-        fetchActions();
-    }, [currentPage]);
-
-    const fetchUsers = async () => {
+    const fetchUsers = useCallback(async () => {
         try {
             setIsLoading(true);
             const token = localStorage.getItem('authToken');
@@ -96,6 +90,17 @@ export function AdminPanel() {
                     },
                 }
             );
+
+            if (response.status === 401) {
+                // Token expiré ou invalide
+                localStorage.removeItem('authToken');
+                localStorage.removeItem('user');
+                toast.error('Session expirée. Veuillez vous reconnecter.', {
+                    duration: 5000,
+                    position: 'top-right',
+                });
+                return;
+            }
 
             if (!response.ok) {
                 throw new Error('Erreur lors de la récupération des utilisateurs');
@@ -120,9 +125,9 @@ export function AdminPanel() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [currentPage]);
 
-    const fetchStats = async () => {
+    const fetchStats = useCallback(async () => {
         try {
             const token = localStorage.getItem('authToken');
             const response = await fetch(
@@ -134,6 +139,12 @@ export function AdminPanel() {
                 }
             );
 
+            if (response.status === 401) {
+                localStorage.removeItem('authToken');
+                localStorage.removeItem('user');
+                return;
+            }
+
             if (!response.ok) {
                 throw new Error('Erreur lors de la récupération des statistiques');
             }
@@ -143,9 +154,9 @@ export function AdminPanel() {
         } catch (error) {
             console.error('Erreur lors de la récupération des statistiques:', error);
         }
-    };
+    }, []);
 
-    const fetchActions = async () => {
+    const fetchActions = useCallback(async () => {
         try {
             const token = localStorage.getItem('authToken');
             const response = await fetch(
@@ -157,6 +168,12 @@ export function AdminPanel() {
                 }
             );
 
+            if (response.status === 401) {
+                localStorage.removeItem('authToken');
+                localStorage.removeItem('user');
+                return;
+            }
+
             if (!response.ok) {
                 throw new Error('Erreur lors de la récupération des actions');
             }
@@ -166,7 +183,37 @@ export function AdminPanel() {
         } catch (error) {
             console.error('Erreur lors de la récupération des actions:', error);
         }
+    }, []);
+
+    const handleLogout = () => {
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('user');
+        toast.success('Déconnexion réussie', {
+            duration: 3000,
+            position: 'top-right',
+        });
+        // Recharger la page pour revenir à l'interface utilisateur normale
+        window.location.reload();
     };
+
+    useEffect(() => {
+        // Vérifier si l'utilisateur est connecté avant de faire les appels API
+        const token = localStorage.getItem('authToken');
+        if (!token) {
+            toast.error('Session expirée. Veuillez vous reconnecter.', {
+                duration: 5000,
+                position: 'top-right',
+            });
+            // Rediriger vers la page de connexion ou nettoyer le localStorage
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('user');
+            return;
+        }
+
+        fetchUsers();
+        fetchStats();
+        fetchActions();
+    }, [currentPage, fetchUsers, fetchStats, fetchActions]);
 
     const handleCreateUser = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -270,7 +317,7 @@ export function AdminPanel() {
             const action = user.isActive ? 'deactivate' : 'activate';
 
             const response = await fetch(
-                `${import.meta.env.VITE_API_URL || 'http://localhost:3001/api'}/admin/users/${user.id}/${action}`,
+                `${import.meta.env.VITE_API_URL || 'http://localhost:3001/api'}/admin/users/${user.id}/toggle-status`,
                 {
                     method: 'POST',
                     headers: {
@@ -443,9 +490,14 @@ export function AdminPanel() {
         <div className="space-y-6">
             <div className="flex justify-between items-center">
                 <h1 className="text-3xl font-bold">Administration des Utilisateurs</h1>
-                <Button onClick={() => setIsCreateUserOpen(true)}>
-                    + Créer un utilisateur
-                </Button>
+                <div className="flex gap-2">
+                    <Button variant="outline" onClick={handleLogout}>
+                        Déconnexion
+                    </Button>
+                    <Button onClick={() => setIsCreateUserOpen(true)}>
+                        + Créer un utilisateur
+                    </Button>
+                </div>
             </div>
 
             {/* Statistiques */}

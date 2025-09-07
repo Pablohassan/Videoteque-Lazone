@@ -113,8 +113,16 @@ const verifyJwt: VerifyCallback = async (
   ) => void
 ): Promise<void> => {
   try {
+    console.log("🔐 JWT verification started");
+    console.log("📋 Payload received:", {
+      id: payload.id,
+      email: payload.email,
+      exp: payload.exp,
+    });
+
     // Validate payload structure
     if (!payload.id || !payload.email) {
+      console.log("❌ Invalid payload structure");
       return done(null, false, {
         message: "Invalid token - missing information",
       });
@@ -122,9 +130,13 @@ const verifyJwt: VerifyCallback = async (
 
     // Validate token expiration
     if (payload.exp && payload.exp * 1000 < Date.now()) {
+      console.log("❌ Token expired:", new Date(payload.exp * 1000));
       return done(null, false, { message: "Token has expired" });
     }
 
+    console.log("✅ Token structure and expiration OK");
+
+    console.log("👤 Searching for user ID:", payload.id);
     const user = await prisma.user.findUnique({
       where: { id: payload.id },
       select: {
@@ -139,17 +151,30 @@ const verifyJwt: VerifyCallback = async (
     });
 
     if (!user) {
+      console.log("❌ User not found in database");
       return done(null, false, { message: "User not found" });
     }
 
+    console.log("✅ User found:", {
+      id: user.id,
+      email: user.email,
+      isActive: user.isActive,
+    });
+
     if (!user.isActive) {
+      console.log("❌ User account deactivated");
       return done(null, false, { message: "Account is deactivated" });
     }
 
     if (user.email !== payload.email) {
+      console.log("❌ Email mismatch:", {
+        db: user.email,
+        token: payload.email,
+      });
       return done(null, false, { message: "Invalid token - email mismatch" });
     }
 
+    console.log("✅ JWT verification successful");
     return done(null, user);
   } catch (error) {
     console.error("JWT auth error:", error);
@@ -209,7 +234,17 @@ export const passportJwtAuth = (
       // Handle authentication failure
       if (!user) {
         const message = info?.message || "Invalid or expired token";
-        console.log("JWT authentication failed:", message);
+        console.log("🚫 JWT authentication failed:", message);
+        console.log(
+          "🚫 Request headers:",
+          req.headers.authorization
+            ? "Bearer token present"
+            : "No Authorization header"
+        );
+        console.log(
+          "🚫 Token preview:",
+          req.headers.authorization?.substring(0, 50) + "..." || "No token"
+        );
 
         return res.status(401).json({
           success: false,
