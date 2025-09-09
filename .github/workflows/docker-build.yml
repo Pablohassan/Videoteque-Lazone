@@ -13,18 +13,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
       - name: Build Docker image
         run: npm run docker:build
         env:
           GIT_COMMIT: ${{ github.sha }}
           VITE_TMDB_API_KEY: ${{ secrets.VITE_TMDB_API_KEY }}
+          VITE_API_URL: ${{ secrets.VITE_API_URL}}
 
       - name: Push images
-        run: |
-          docker push dambuty/lazone-videotek:latest
+        run: npm run docker:push
+        env:
+          GIT_COMMIT: ${{ github.sha }}
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME}}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN}}
