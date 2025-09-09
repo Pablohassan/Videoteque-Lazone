@@ -43,7 +43,256 @@ const port = parseInt(process.env.PORT ?? "3001", 10);
 
 // Auto watch configuration with validation
 const AUTO_WATCH_ENABLED = process.env.AUTO_WATCH_ENABLED !== "false";
-const AUTO_INDEX_EXISTING = process.env.AUTO_INDEX_EXISTING === "true";
+const FORCE_FULL_REINDEX = process.env.FORCE_FULL_REINDEX === "true";
+
+// Fonction d'indexation intelligente avec diff
+const performSmartIndexing = async (): Promise<void> => {
+  const fs = await import("fs");
+  const path = await import("path");
+
+  const moviesFolder = movieIndexingService.getMoviesFolderAbsolutePath();
+  const indexStateFile = path.join(process.cwd(), ".movie-index-state.json");
+
+  try {
+    // Vérifier si un état d'indexation existe
+    const indexState = {
+      lastIndexedFiles: new Set<string>(),
+      lastIndexTime: 0,
+    };
+
+    if (fs.existsSync(indexStateFile) && !FORCE_FULL_REINDEX) {
+      // Charger l'état existant
+      const stateData = JSON.parse(fs.readFileSync(indexStateFile, "utf-8"));
+      indexState.lastIndexedFiles = new Set(stateData.lastIndexedFiles || []);
+      indexState.lastIndexTime = stateData.lastIndexTime || 0;
+      console.log(
+        `📊 État d'indexation chargé: ${indexState.lastIndexedFiles.size} fichiers`
+      );
+    }
+
+    // Scanner tous les fichiers actuels
+    const currentFiles = new Set<string>();
+    const scanDirectory = (dir: string) => {
+      const items = fs.readdirSync(dir);
+      for (const item of items) {
+        const fullPath = path.join(dir, item);
+        const stat = fs.statSync(fullPath);
+
+        if (stat.isDirectory()) {
+          scanDirectory(fullPath);
+        } else if (stat.isFile()) {
+          const ext = path.extname(item).toLowerCase();
+          if (
+            [
+              ".mp4",
+              ".mkv",
+              ".avi",
+              ".mov",
+              ".wmv",
+              ".flv",
+              ".webm",
+              ".m4v",
+            ].includes(ext)
+          ) {
+            // Utiliser le même format que la DB : ../../Downloads/films/...
+            const relativeFromMovies = path.relative(moviesFolder, fullPath);
+            const dbFormatPath = `../../Downloads/films/${relativeFromMovies}`;
+            currentFiles.add(dbFormatPath);
+          }
+        }
+      }
+    };
+
+    console.log("🔍 Scan du dossier films en cours...");
+    console.log(`🔍 Dossier scanné: ${moviesFolder}`);
+    scanDirectory(moviesFolder);
+    console.log(`📁 ${currentFiles.size} fichiers vidéo trouvés`);
+
+    // Debug: Afficher les fichiers trouvés
+    console.log("📋 Fichiers trouvés:");
+    Array.from(currentFiles)
+      .slice(0, 10)
+      .forEach((file) => {
+        console.log(`   - ${file}`);
+      });
+    if (currentFiles.size > 10) {
+      console.log(`   ... et ${currentFiles.size - 10} autres`);
+    }
+
+    // Identifier les nouveaux fichiers et les fichiers supprimés
+    const newFiles = Array.from(currentFiles).filter(
+      (file) => !indexState.lastIndexedFiles.has(file)
+    );
+    const deletedFiles = Array.from(indexState.lastIndexedFiles).filter(
+      (file) => !currentFiles.has(file)
+    );
+
+    // Debug: Afficher les différences avec les vrais chemins
+    if (deletedFiles.length > 0) {
+      console.log("🗑️ Fichiers supprimés (DB vs Disque):");
+      deletedFiles.slice(0, 3).forEach((file) => {
+        console.log(`   - DB: ${file}`);
+        // Essayer de trouver le chemin correspondant dans currentFiles
+        const matching = Array.from(currentFiles).find((f) =>
+          f.includes(path.basename(file))
+        );
+        if (matching) {
+          console.log(`   - Disque: ${matching}`);
+        }
+      });
+    }
+
+    console.log(`➕ ${newFiles.length} nouveaux fichiers`);
+    console.log(`➖ ${deletedFiles.length} fichiers supprimés`);
+
+    // Debug: Afficher les différences
+    if (newFiles.length > 0) {
+      console.log("📄 Nouveaux fichiers:");
+      newFiles.slice(0, 5).forEach((file) => console.log(`   + ${file}`));
+    }
+    if (deletedFiles.length > 0) {
+      console.log("🗑️ Fichiers supprimés:");
+      deletedFiles.slice(0, 5).forEach((file) => console.log(`   - ${file}`));
+    }
+
+    // DEBUG: Afficher l'état complet
+    console.log(`\n🔍 ÉTAT DÉTAILLÉ:`);
+    console.log(`   Fichiers dans le dossier: ${currentFiles.size}`);
+    console.log(`   Fichiers dans l'état: ${indexState.lastIndexedFiles.size}`);
+    console.log(`   Fichiers nouveaux: ${newFiles.length}`);
+    console.log(`   Fichiers supprimés: ${deletedFiles.length}`);
+
+    // METTRE À JOUR L'ÉTAT D'INDEXATION AVANT TOUT TRAITEMENT
+    // L'état doit toujours refléter UNIQUEMENT les fichiers qui existent réellement
+    const newIndexState = new Set();
+
+    console.log(`🔍 DEBUG - Reconstruction de l'état:`);
+    console.log(`   currentFiles.size: ${currentFiles.size}`);
+    console.log(`   currentFiles contenu:`, Array.from(currentFiles));
+
+    // Ajouter TOUS les fichiers présents dans le dossier (ils existent forcément)
+    for (const currentFile of currentFiles) {
+      newIndexState.add(currentFile);
+      console.log(`   ✅ Ajouté: ${currentFile}`);
+    }
+
+    console.log(
+      `📝 État reconstruit avec ${newIndexState.size} fichiers existants réels`
+    );
+
+    // Sauvegarder immédiatement l'état mis à jour
+    const updatedIndexState = {
+      lastIndexedFiles: Array.from(newIndexState),
+      lastIndexTime: Date.now(),
+    };
+
+    fs.writeFileSync(
+      indexStateFile,
+      JSON.stringify(updatedIndexState, null, 2)
+    );
+    console.log(
+      `💾 État d'indexation mis à jour: ${newIndexState.size} fichiers réels`
+    );
+
+    // Maintenant traiter l'indexation (cette étape peut échouer, mais l'état est déjà cohérent)
+
+    // INDEXER TOUS LES FICHIERS AU DÉMARRAGE (pas seulement les nouveaux)
+    console.log("🎬 Indexation de TOUS les fichiers...");
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const relativePath of currentFiles) {
+      const fullPath = path.join(moviesFolder, relativePath);
+      try {
+        console.log(`🔄 Indexation de: ${path.basename(relativePath)}`);
+        const result = await movieIndexingService.indexSingleFile(fullPath);
+        if (result.success) {
+          console.log(`✅ Indexé: ${path.basename(relativePath)}`);
+          successCount++;
+        } else {
+          console.log(
+            `❌ Échec indexation: ${path.basename(relativePath)} - ${
+              result.error
+            }`
+          );
+          errorCount++;
+        }
+      } catch (error) {
+        console.error(
+          `💥 Erreur indexation ${path.basename(relativePath)}:`,
+          error
+        );
+        errorCount++;
+      }
+    }
+
+    console.log(`📊 Résultats: ${successCount} succès, ${errorCount} échecs`);
+
+    // Nettoyer les films orphelins de la DB UNIQUEMENT pour les fichiers vraiment supprimés
+    if (deletedFiles.length > 0) {
+      console.log("🗑️ Nettoyage des vrais films orphelins...");
+      const { PrismaClient } = await import("@prisma/client");
+      const prisma = new PrismaClient();
+
+      try {
+        let cleanedCount = 0;
+        for (const deletedFile of deletedFiles) {
+          // Vérifier que le fichier n'existe vraiment plus
+          const relativePath = deletedFile.replace(
+            "../../Downloads/films/",
+            ""
+          );
+          const absolutePath = path.join(moviesFolder, relativePath);
+          const fileStillExists = fs.existsSync(absolutePath);
+
+          if (!fileStillExists) {
+            // Le fichier n'existe vraiment plus, on peut nettoyer
+            const movie = await prisma.movie.findFirst({
+              where: { localPath: deletedFile },
+            });
+
+            if (movie) {
+              // Supprimer les relations
+              await prisma.movieGenre.deleteMany({
+                where: { movieId: movie.id },
+              });
+              await prisma.movieActor.deleteMany({
+                where: { movieId: movie.id },
+              });
+              await prisma.review.deleteMany({
+                where: { movieId: movie.id },
+              });
+
+              // Supprimer le film
+              await prisma.movie.delete({
+                where: { id: movie.id },
+              });
+
+              console.log(`🗑️ Film orphelin nettoyé: ${movie.title}`);
+              cleanedCount++;
+            }
+          } else {
+            console.log(
+              `⏳ Film conservé (fichier existe toujours): ${deletedFile}`
+            );
+          }
+        }
+
+        console.log(`✅ ${cleanedCount} vrais films orphelins nettoyés`);
+      } catch (error) {
+        console.error("❌ Erreur lors du nettoyage:", error);
+      } finally {
+        await prisma.$disconnect();
+      }
+    }
+
+    console.log(
+      `🎉 Indexation intelligente terminée: ${newFiles.length} nouveaux, ${deletedFiles.length} supprimés`
+    );
+  } catch (error) {
+    console.error("❌ Erreur lors de l'indexation intelligente:", error);
+  }
+};
 
 // Auto watch function with proper error handling
 const startAutoWatch = async (): Promise<void> => {
@@ -55,11 +304,9 @@ const startAutoWatch = async (): Promise<void> => {
   try {
     console.log("🔍 Démarrage de la surveillance automatique...");
 
-    // Indexer les fichiers existants si demandé
-    if (AUTO_INDEX_EXISTING) {
-      console.log("📁 Indexation des fichiers existants...");
-      await movieWatcherService.indexExistingFiles();
-    }
+    // Indexation intelligente (diff au lieu de full reindex)
+    console.log("🧠 Démarrage de l'indexation intelligente...");
+    await performSmartIndexing();
 
     // Démarrer la surveillance
     await movieWatcherService.start();
@@ -221,12 +468,9 @@ const createServer = async (): Promise<void> => {
     // Start auto watch if enabled
     if (AUTO_WATCH_ENABLED) {
       console.log("👀 Surveillance automatique activée");
+      console.log("🧠 Indexation intelligente activée");
 
-      if (AUTO_INDEX_EXISTING) {
-        console.log("📁 Indexation des fichiers existants activée");
-      }
-
-      // Démarrer la surveillance automatique
+      // Démarrer la surveillance automatique avec indexation intelligente
       startAutoWatch();
     }
   });

@@ -24,6 +24,7 @@
     "scan:movies": "tsx server/scripts/movieScanner.ts",
     "index:movies": "tsx server/scripts/autoIndexer.ts",
     "watch:movies": "tsx server/scripts/movieWatcher.ts",
+    "sync-db": "tsx server/scripts/syncDatabase.ts",
     "admin:create": "tsx server/scripts/createAdmin.ts",
     "admin:migrate": "tsx server/scripts/migrateToRoles.ts",
     "test:smtp": "node test-smtp.mjs"

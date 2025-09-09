@@ -282,6 +282,7 @@ export class MovieIndexingService {
     parsedMovie: ParsedMovie,
     tmdbMovie: TMDBMovie
   ): Promise<Movie> {
+    console.log(`🔄 Début de saveToDatabase pour: ${parsedMovie.title}`);
     try {
       // Récupérer les détails complets du film depuis TMDB
       const fullTmdbMovie = await this.tmdbClient.getMovie(tmdbMovie.id);
@@ -302,6 +303,10 @@ export class MovieIndexingService {
       // Récupérer les acteurs
       const actors = this.tmdbClient.extractActors(fullTmdbMovie.credits);
 
+      // Convertir le chemin absolu en chemin relatif pour la cohérence
+      const relativePath = path.relative(process.cwd(), parsedMovie.filepath);
+      const dbFormatPath = `../../${relativePath}`;
+
       // Créer ou mettre à jour le film
       const movieData = {
         tmdbId: fullTmdbMovie.id,
@@ -314,8 +319,8 @@ export class MovieIndexingService {
         releaseDate: new Date(fullTmdbMovie.release_date),
         duration: fullTmdbMovie.runtime || 0,
         rating: 0,
-        // Informations du fichier local
-        localPath: parsedMovie.filepath,
+        // Informations du fichier local - utiliser le format relatif cohérent
+        localPath: dbFormatPath,
         filename: parsedMovie.filename,
         fileSize: BigInt(parsedMovie.size), // Convertir en BigInt pour Prisma
         resolution: parsedMovie.resolution || "",
@@ -325,11 +330,16 @@ export class MovieIndexingService {
       };
 
       // Utiliser upsert pour éviter les conflits de contrainte unique
+      console.log(`💾 Sauvegarde du film: ${fullTmdbMovie.title}`);
+      console.log(`💾 Données:`, movieData);
+
       const dbMovie = await prisma.movie.upsert({
         where: { tmdbId: fullTmdbMovie.id },
         update: movieData,
         create: movieData,
       });
+
+      console.log(`✅ Film sauvegardé avec ID: ${dbMovie.id}`);
 
       // Gérer les genres (relation many-to-many)
       if (movieGenres.length > 0) {
@@ -420,7 +430,11 @@ export class MovieIndexingService {
       const stats = fs.statSync(filepath);
       const parsed = ptt.parse(filename);
 
+      console.log(`🔍 [PARSE] Fichier: ${filename}`);
+      console.log(`🔍 [PARSE] Parsed result:`, JSON.stringify(parsed, null, 2));
+
       if (!parsed.title) {
+        console.log(`❌ [PARSE] Aucun titre trouvé pour: ${filename}`);
         return {
           filename,
           title: "",
@@ -428,6 +442,12 @@ export class MovieIndexingService {
           error: "Impossible d'extraire le titre du fichier",
         };
       }
+
+      console.log(
+        `✅ [PARSE] Titre trouvé: "${parsed.title}" (${
+          parsed.year || "année inconnue"
+        })`
+      );
 
       const cleanTitle = this.cleanTitle(parsed.title);
 
@@ -464,9 +484,11 @@ export class MovieIndexingService {
       };
 
       // Rechercher sur TMDB
+      console.log(`🔍 Recherche TMDB pour: ${cleanTitle}`);
       const tmdbMatch = await this.findOnTMDB(parsedMovie);
 
       if (!tmdbMatch) {
+        console.log(`❌ TMDB: Aucun résultat pour ${cleanTitle}`);
         return {
           filename,
           title: cleanTitle,
@@ -476,8 +498,12 @@ export class MovieIndexingService {
         };
       }
 
+      console.log(`✅ TMDB trouvé: ${tmdbMatch.title} (${tmdbMatch.release_date?.split('-')[0]})`);
+
       // Sauvegarder en base
+      console.log(`💾 Appel de saveToDatabase pour: ${parsedMovie.title}`);
       const dbMovie = await this.saveToDatabase(parsedMovie, tmdbMatch);
+      console.log(`✅ saveToDatabase terminé pour: ${dbMovie.title}`);
 
       return {
         filename,

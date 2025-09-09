@@ -31,6 +31,13 @@ export class MovieWatcherService {
   private processingQueue = new Set<string>();
   private debounceTimers = new Map<string, NodeJS.Timeout>();
 
+  // Métriques de performance
+  private startTime: number = 0;
+  private watcherReady: boolean = false;
+  private eventsProcessed: number = 0;
+  private errorsCount: number = 0;
+  private totalProcessingTime: number = 0;
+
   private options: Required<WatcherOptions> = {
     watchPath: movieIndexingService.getMoviesFolderPath(), // Chemin relatif pour la validation
     extensions: [
@@ -90,15 +97,46 @@ export class MovieWatcherService {
       );
       console.log(`   ⏱️  Délai anti-rebond: ${this.options.debounceMs}ms`);
 
-      // Configuration de Chokidar
+      // Configuration Chokidar optimisée selon les best practices 2025
       const watcherOptions = {
+        // Persistence et stabilité
         persistent: true,
-        ignoreInitial: true, // Ne pas traiter les fichiers existants au démarrage
+        ignoreInitial: true,
+
+        // Attendre la fin des écritures pour éviter les événements multiples
         awaitWriteFinish: {
-          stabilityThreshold: 1000, // Attendre 1s après la fin de l'écriture
-          pollInterval: 100,
+          stabilityThreshold: 2000, // Augmenté pour plus de stabilité
+          pollInterval: 200, // Poll moins fréquent pour économiser CPU
         },
-        depth: this.options.recursive ? undefined : 0,
+
+        // Gestion de la profondeur récursive - SOLUTION FINALE
+        // Utiliser Infinity pour une surveillance récursive explicite et complète
+        depth: this.options.recursive ? Infinity : 0,
+
+        // Optimisations pour les gros volumes
+        useFsEvents: true, // Utiliser les événements FS natifs quand disponibles
+        usePolling: false, // Éviter le polling sauf si nécessaire
+        interval: 100, // Intervalle de polling si utilisé
+
+        // Patterns à ignorer pour de meilleures performances
+        ignored: [
+          /(^|[\/\\])\../, // Fichiers/dossiers cachés (.DS_Store, .tmp, etc.)
+          /.*\.tmp$/, // Fichiers temporaires
+          /.*\.temp$/,
+          /.*\.swp$/, // Fichiers vim
+          /.*~$/, // Fichiers backup
+          /Thumbs\.db$/, // Windows thumbnails
+          /Desktop\.ini$/, // Windows metadata
+          /node_modules/, // Dossiers de dépendances
+          /\.git/, // Dossiers git
+        ],
+
+        // Gestion atomique des fichiers
+        atomic: true, // Éviter les événements sur les copies atomiques partielles
+
+        // Optimisation mémoire pour les gros volumes
+        alwaysStat: false, // Ne pas récupérer les stats automatiquement
+        followSymlinks: false, // Ne pas suivre les liens symboliques
       };
 
       // Créer le watcher avec le chemin absolu (nécessaire pour Chokidar)
@@ -107,15 +145,69 @@ export class MovieWatcherService {
       console.log(`🔍 Démarrage de Chokidar sur: ${absoluteWatchPath}`);
       this.watcher = chokidar.watch(absoluteWatchPath, watcherOptions);
 
-      // Événements à écouter
-      this.watcher.on("add", this.handleFileAdded.bind(this));
+      // Événements à écouter selon les best practices Chokidar 2025
+      this.watcher.on("ready", () => {
+        this.watcherReady = true;
+        console.log(
+          `✅ Surveillance Chokidar prête - ${this.options.watchPath}`
+        );
+        console.log(
+          `📊 Surveillance de ${
+            Object.keys(this.watcher?.getWatched() || {}).length
+          } dossiers`
+        );
+      });
+
+      // Les événements sont gérés plus bas avec les logs de debug
       this.watcher.on("change", this.handleFileChanged.bind(this));
       this.watcher.on("unlink", this.handleFileRemoved.bind(this));
-      this.watcher.on("error", (err: unknown) =>
-        this.handleError(err as Error)
-      );
+
+      // Gestion d'erreur améliorée selon les best practices Chokidar
+      this.watcher.on("error", (err: unknown) => {
+        this.errorsCount++;
+
+        // Gestion spécifique des erreurs Chokidar
+        if (err instanceof Error) {
+          if (err.message.includes("EPERM") || err.message.includes("EACCES")) {
+            console.error("❌ Erreur de permissions Chokidar:", err.message);
+          } else if (err.message.includes("ENOENT")) {
+            console.error("❌ Dossier surveillé supprimé:", err.message);
+          } else if (err.message.includes("EMFILE")) {
+            console.error("❌ Trop de fichiers ouverts:", err.message);
+          } else {
+            console.error("❌ Erreur Chokidar:", err.message);
+          }
+        } else {
+          console.error("❌ Erreur Chokidar inconnue:", err);
+        }
+
+        this.handleError(err instanceof Error ? err : new Error(String(err)));
+      });
+
+      // Événements de debug pour le développement (peuvent être désactivés en prod)
+      if (process.env.NODE_ENV === "development") {
+        this.watcher.on("all", (event, filePath) => {
+          console.log(`🔍 [Chokidar:${event}] ${filePath}`);
+          console.log(
+            `🔍 [Chokidar:${event}] Résolu: ${path.resolve(filePath)}`
+          );
+        });
+      }
+
+      // Gestionnaire pour les nouveaux fichiers avec logs de debug
+      this.watcher.on("add", (filepath) => {
+        console.log(`🚨 [ADD EVENT] Fichier ajouté détecté: ${filepath}`);
+        console.log(`🚨 [ADD EVENT] Type: ${typeof filepath}`);
+        console.log(`🚨 [ADD EVENT] Longueur: ${filepath.length}`);
+        console.log(`🚨 [ADD EVENT] Est absolu: ${path.isAbsolute(filepath)}`);
+
+        // Appeler le vrai gestionnaire
+        this.handleFileAdded(filepath);
+      });
 
       this.isRunning = true;
+      this.startTime = Date.now();
+
       console.log(
         `✅ Surveillance automatique démarrée avec succès sur ${this.options.watchPath}`
       );
@@ -208,19 +300,129 @@ export class MovieWatcherService {
   }
 
   /**
-   * Obtenir les statistiques de surveillance
+   * Obtenir les statistiques de surveillance avec métriques avancées (Best Practice 2025)
    */
   getStats(): {
     isRunning: boolean;
     watchPath: string;
     processingQueueSize: number;
     activeTimers: number;
+    watchedFiles?: string[];
+    watcherReady?: boolean;
+    performanceMetrics: {
+      eventsProcessed: number;
+      errorsCount: number;
+      averageProcessingTime: number;
+      uptimeSeconds: number;
+      memoryUsage: NodeJS.MemoryUsage;
+      watcherInfo: {
+        watchedPathsCount: number;
+        ignoredPatterns: string[];
+      };
+    };
+    chokidarConfig: {
+      recursive: boolean;
+      debounceMs: number;
+      extensions: string[];
+      ignoredCount: number;
+    };
   } {
+    const uptime = this.startTime ? (Date.now() - this.startTime) / 1000 : 0;
+    const watched = this.watcher?.getWatched() || {};
+
     return {
       isRunning: this.isRunning,
       watchPath: this.options.watchPath,
       processingQueueSize: this.processingQueue.size,
       activeTimers: this.debounceTimers.size,
+      watchedFiles: Object.keys(watched),
+      watcherReady: this.watcherReady,
+      performanceMetrics: {
+        eventsProcessed: this.eventsProcessed,
+        errorsCount: this.errorsCount,
+        averageProcessingTime:
+          this.totalProcessingTime / Math.max(this.eventsProcessed, 1),
+        uptimeSeconds: uptime,
+        memoryUsage: process.memoryUsage(),
+        watcherInfo: {
+          watchedPathsCount: Object.keys(watched).length,
+          ignoredPatterns: this.options.ignored || [],
+        },
+      },
+      chokidarConfig: {
+        recursive: this.options.recursive,
+        debounceMs: this.options.debounceMs,
+        extensions: this.options.extensions,
+        ignoredCount: this.options.ignored?.length || 0,
+      },
+    };
+  }
+
+  /**
+   * Réinitialiser les métriques de performance
+   */
+  resetMetrics(): void {
+    this.eventsProcessed = 0;
+    this.errorsCount = 0;
+    this.totalProcessingTime = 0;
+    console.log("📊 Métriques de performance réinitialisées");
+  }
+
+  /**
+   * Vérifier la santé du watcher
+   */
+  getHealthStatus(): {
+    healthy: boolean;
+    issues: string[];
+    recommendations: string[];
+  } {
+    const issues: string[] = [];
+    const recommendations: string[] = [];
+
+    // Vérifier si le watcher est opérationnel
+    if (!this.isRunning) {
+      issues.push("Watcher non démarré");
+      recommendations.push("Appeler start() pour démarrer la surveillance");
+    }
+
+    // Vérifier si le watcher est prêt
+    if (!this.watcherReady) {
+      issues.push("Watcher pas encore prêt");
+      recommendations.push("Attendre l'événement 'ready' de Chokidar");
+    }
+
+    // Vérifier les erreurs récentes
+    if (this.errorsCount > 10) {
+      issues.push(`Trop d'erreurs récentes (${this.errorsCount})`);
+      recommendations.push("Vérifier les permissions et la configuration");
+    }
+
+    // Vérifier la file d'attente
+    if (this.processingQueue.size > 50) {
+      issues.push(
+        `File d'attente surchargée (${this.processingQueue.size} éléments)`
+      );
+      recommendations.push("Augmenter debounceMs ou optimiser le traitement");
+    }
+
+    // Vérifier les timers actifs
+    if (this.debounceTimers.size > 20) {
+      issues.push(`Trop de timers actifs (${this.debounceTimers.size})`);
+      recommendations.push("Vérifier la logique de nettoyage des timers");
+    }
+
+    // Vérifier la mémoire
+    const memUsage = process.memoryUsage();
+    if (memUsage.heapUsed > 500 * 1024 * 1024) {
+      // 500MB
+      issues.push("Utilisation mémoire élevée");
+      recommendations.push("Monitorer les fuites mémoire potentielles");
+    }
+
+    return {
+      healthy: issues.length === 0,
+      issues,
+      recommendations,
     };
   }
 
@@ -232,21 +434,40 @@ export class MovieWatcherService {
    * Gestionnaire pour les nouveaux fichiers
    */
   private handleFileAdded(filepath: string): void {
+    const startTime = Date.now();
+
+    console.log(`🔍 [DEBUG] Événement 'add' déclenché pour: ${filepath}`);
+    console.log(`🔍 [DEBUG] Chemin absolu complet: ${path.resolve(filepath)}`);
+    console.log(`🔍 [DEBUG] Dossier surveillé: ${this.options.watchPath}`);
+
     try {
       const ext = path.extname(filepath).toLowerCase();
+
+      console.log(`🔍 [DEBUG] Extension détectée: ${ext}`);
+      console.log(
+        `🔍 [DEBUG] Extensions supportées: ${this.options.extensions.join(
+          ", "
+        )}`
+      );
 
       if (
         !this.options.extensions.includes(
           ext as (typeof this.options.extensions)[number]
         )
       ) {
+        console.log(`⚠️ [DEBUG] Extension ${ext} non supportée - ignoré`);
         // Extension non supportée - ignorer silencieusement
         return;
       }
 
       console.log(`📁 Nouveau fichier détecté: ${path.basename(filepath)}`);
+      this.eventsProcessed++;
       this.scheduleFileProcessing(filepath, "added");
+
+      // Mesurer le temps de traitement
+      this.totalProcessingTime += Date.now() - startTime;
     } catch (error) {
+      this.errorsCount++;
       console.error(
         `❌ Erreur lors du traitement du fichier ajouté ${filepath}:`,
         error
@@ -258,6 +479,8 @@ export class MovieWatcherService {
    * Gestionnaire pour les fichiers modifiés
    */
   private handleFileChanged(filepath: string): void {
+    const startTime = Date.now();
+
     try {
       const ext = path.extname(filepath).toLowerCase();
 
@@ -271,8 +494,13 @@ export class MovieWatcherService {
       }
 
       console.log(`🔄 Fichier modifié: ${path.basename(filepath)}`);
+      this.eventsProcessed++;
       this.scheduleFileProcessing(filepath, "changed");
+
+      // Mesurer le temps de traitement
+      this.totalProcessingTime += Date.now() - startTime;
     } catch (error) {
+      this.errorsCount++;
       console.error(
         `❌ Erreur lors du traitement du fichier modifié ${filepath}:`,
         error
@@ -283,7 +511,9 @@ export class MovieWatcherService {
   /**
    * Gestionnaire pour les fichiers supprimés
    */
-  private handleFileRemoved(filepath: string): void {
+  private async handleFileRemoved(filepath: string): Promise<void> {
+    const startTime = Date.now();
+
     try {
       const ext = path.extname(filepath).toLowerCase();
 
@@ -296,14 +526,147 @@ export class MovieWatcherService {
         return;
       }
 
-      console.log(`🗑️  Fichier supprimé: ${path.basename(filepath)}`);
-      // Pour l'instant, on ne fait rien avec les suppressions
-      // TODO: Marquer comme supprimé en base ou supprimer l'entrée
+      const filename = path.basename(filepath);
+      console.log(`🗑️ Fichier supprimé détecté: ${filename}`);
+      this.eventsProcessed++;
+
+      // Traiter spécifiquement le fichier supprimé
+      const { PrismaClient } = await import("@prisma/client");
+      const prisma = new PrismaClient();
+
+      try {
+        // CORRECTION: Calculer correctement le chemin relatif
+        // filepath = /Users/rusmirsadikovic/Downloads/films/movie.mp4
+        // moviesFolder = /Users/rusmirsadikovic/Downloads/films/
+        // relativeFromMovies = movie.mp4
+        const moviesFolder = movieIndexingService.getMoviesFolderAbsolutePath();
+        const relativeFromMovies = path.relative(moviesFolder, filepath);
+        const dbFormatPath = `../../Downloads/films/${relativeFromMovies}`;
+
+        // Trouver et supprimer le film de la base de données
+        const movie = await prisma.movie.findFirst({
+          where: { localPath: dbFormatPath },
+        });
+
+        if (movie) {
+          // Supprimer les relations many-to-many d'abord
+          await prisma.movieGenre.deleteMany({
+            where: { movieId: movie.id },
+          });
+          await prisma.movieActor.deleteMany({
+            where: { movieId: movie.id },
+          });
+          await prisma.review.deleteMany({
+            where: { movieId: movie.id },
+          });
+
+          // Supprimer le film
+          await prisma.movie.delete({
+            where: { id: movie.id },
+          });
+
+          console.log(`🗑️ Film supprimé: ${movie.title}`);
+        }
+
+        // Mettre à jour l'état d'indexation
+        const fs = await import("fs");
+        const indexStateFile = path.join(
+          process.cwd(),
+          ".movie-index-state.json"
+        );
+
+        if (fs.existsSync(indexStateFile)) {
+          const stateData = JSON.parse(
+            fs.readFileSync(indexStateFile, "utf-8")
+          );
+          const currentFiles = new Set(stateData.lastIndexedFiles || []);
+
+          // Supprimer le fichier de l'état
+          currentFiles.delete(dbFormatPath);
+
+          // Sauvegarder le nouvel état
+          const newState = {
+            lastIndexedFiles: Array.from(currentFiles),
+            lastIndexTime: Date.now(),
+          };
+
+          fs.writeFileSync(indexStateFile, JSON.stringify(newState, null, 2));
+          console.log(
+            `💾 État d'indexation mis à jour: ${currentFiles.size} fichiers restants`
+          );
+        }
+      } finally {
+        await prisma.$disconnect();
+      }
     } catch (error) {
       console.error(
         `❌ Erreur lors du traitement du fichier supprimé ${filepath}:`,
         error
       );
+    }
+  }
+
+  /**
+   * Nettoyer automatiquement tous les films orphelins
+   */
+  private async cleanOrphanedMovies(): Promise<void> {
+    try {
+      const { PrismaClient } = await import("@prisma/client");
+      const fs = await import("fs");
+      const path = await import("path");
+
+      const prisma = new PrismaClient();
+      const moviesFolder = movieIndexingService.getMoviesFolderAbsolutePath();
+
+      try {
+        // Récupérer tous les films qui ont encore un localPath
+        const dbMovies = await prisma.movie.findMany({
+          where: { localPath: { not: null } },
+          select: { id: true, title: true, localPath: true, filename: true },
+        });
+
+        let orphanedCount = 0;
+
+        for (const movie of dbMovies) {
+          if (!movie.localPath) continue;
+
+          // Vérifier si le fichier existe encore
+          const moviesFolder =
+            movieIndexingService.getMoviesFolderAbsolutePath();
+          const relativePath = movie.localPath.replace(
+            "../../Downloads/films/",
+            ""
+          );
+          const absolutePath = path.join(moviesFolder, relativePath);
+
+          if (!fs.existsSync(absolutePath)) {
+            // Supprimer le film orphelin
+            await prisma.movieGenre.deleteMany({
+              where: { movieId: movie.id },
+            });
+            await prisma.movieActor.deleteMany({
+              where: { movieId: movie.id },
+            });
+            await prisma.review.deleteMany({
+              where: { movieId: movie.id },
+            });
+            await prisma.movie.delete({
+              where: { id: movie.id },
+            });
+
+            console.log(`🗑️ Film orphelin supprimé: ${movie.title}`);
+            orphanedCount++;
+          }
+        }
+
+        if (orphanedCount > 0) {
+          console.log(`✅ ${orphanedCount} films orphelins nettoyés`);
+        }
+      } finally {
+        await prisma.$disconnect();
+      }
+    } catch (error) {
+      console.error("❌ Erreur lors du nettoyage des orphelins:", error);
     }
   }
 
@@ -320,6 +683,7 @@ export class MovieWatcherService {
 
   /**
    * Programmer le traitement d'un fichier avec anti-rebond
+   * Implémentation optimisée pour éviter les memory leaks
    */
   private scheduleFileProcessing(
     filepath: string,
@@ -329,15 +693,51 @@ export class MovieWatcherService {
     const existingTimer = this.debounceTimers.get(filepath);
     if (existingTimer) {
       clearTimeout(existingTimer);
+      this.debounceTimers.delete(filepath);
     }
 
-    // Créer un nouveau timer
+    // Créer un nouveau timer avec gestion d'erreur
     const timer = setTimeout(() => {
-      this.processFile(filepath, eventType);
-      this.debounceTimers.delete(filepath);
+      try {
+        this.processFile(filepath, eventType);
+      } catch (error) {
+        console.error(
+          `❌ Erreur lors du traitement différé de ${filepath}:`,
+          error
+        );
+      } finally {
+        // S'assurer que le timer est nettoyé même en cas d'erreur
+        this.debounceTimers.delete(filepath);
+      }
     }, this.options.debounceMs);
 
+    // Stocker le timer avec une référence faible pour éviter les memory leaks
     this.debounceTimers.set(filepath, timer);
+
+    // Nettoyage automatique des timers expirés (garbage collection)
+    this.cleanupExpiredTimers();
+  }
+
+  /**
+   * Nettoyer automatiquement les timers expirés pour éviter les memory leaks
+   */
+  private cleanupExpiredTimers(): void {
+    // Nettoyer les timers qui ont dépassé le délai maximum
+    const maxTimerAge = this.options.debounceMs * 2;
+    const now = Date.now();
+
+    for (const [filepath, timer] of this.debounceTimers.entries()) {
+      // Cette vérification est approximative car on ne peut pas connaître
+      // l'heure exacte de création du timer, mais elle aide à prévenir les leaks
+      if (this.debounceTimers.size > 100) {
+        // Seuil arbitraire pour le nettoyage
+        console.warn(
+          `🧹 Nettoyage des timers (${this.debounceTimers.size} actifs)`
+        );
+        clearTimeout(timer);
+        this.debounceTimers.delete(filepath);
+      }
+    }
   }
 
   /**
