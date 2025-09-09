@@ -74,7 +74,7 @@ export function useUsers(filters: UserFilters) {
     queryFn: () => adminApi.getUsers(filters),
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 10 * 60 * 1000, // 10 minutes
-    retry: (failureCount, error: any) => {
+    retry: (failureCount, error: Error & { status?: number }) => {
       // Ne pas réessayer en cas d'erreur 4xx
       if (error?.status >= 400 && error?.status < 500) return false;
       return failureCount < 3;
@@ -118,7 +118,7 @@ export function useCreateUser() {
         description: `Utilisateur créé avec succès. Mot de passe temporaire: ${data.tempPassword}`,
       });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast({
         title: "Erreur",
         description: error.message || "Erreur lors de la création de l'utilisateur",
@@ -146,7 +146,7 @@ export function useUpdateUser() {
         description: "Utilisateur mis à jour avec succès",
       });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast({
         title: "Erreur",
         description: error.message || "Erreur lors de la mise à jour",
@@ -169,7 +169,7 @@ export function useResetPassword() {
         description: `Mot de passe réinitialisé. Nouveau mot de passe: ${data.tempPassword}`,
       });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast({
         title: "Erreur",
         description: error.message || "Erreur lors de la réinitialisation",
@@ -198,7 +198,7 @@ export function useToggleUserStatus() {
         description: `Utilisateur ${action} avec succès`,
       });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast({
         title: "Erreur",
         description: error.message || "Erreur lors de la modification du statut",
@@ -224,7 +224,7 @@ export function useDeleteUser() {
         description: "Utilisateur supprimé avec succès",
       });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast({
         title: "Erreur",
         description: error.message || "Erreur lors de la suppression",

@@ -63,10 +63,6 @@ export interface AuthResponse {
   refreshToken?: string;
 }
 
-// Types pour les réponses spécifiques (peuvent être étendus plus tard si nécessaire)
-export type LoginResponse = AuthResponse;
-export type RegisterResponse = AuthResponse;
-
 // Types pour les erreurs d'authentification
 export interface AuthError {
   code:
@@ -76,4 +72,47 @@ export interface AuthError {
     | "TOKEN_EXPIRED"
     | "INVALID_TOKEN";
   message: string;
+}
+
+// ========================================================================
+// TYPES DE RÉPONSES SPÉCIFIQUES
+// ========================================================================
+
+// Type spécifique pour la réponse d'inscription (avec champs de création)
+export interface RegisterResponse {
+  user: {
+    id: number;
+    email: string;
+    name: string;
+    role: string;
+    createdAt: Date;
+  };
+  token: string;
+}
+
+// Type spécifique pour la réponse de connexion (avec champs de session)
+export interface LoginResponse {
+  user: {
+    id: number;
+    email: string;
+    name: string;
+    role: string;
+  };
+  token: string;
+}
+
+// Type pour la réponse de demande de réinitialisation de mot de passe
+export interface PasswordResetResponse {
+  message: string;
+}
+
+// Type pour la réponse de vérification de token
+export interface TokenVerificationResponse {
+  valid: boolean;
+  user?: {
+    id: number;
+    email: string;
+    name: string;
+    role: string;
+  };
 }

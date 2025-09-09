@@ -1,13 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from './ui/command';
-import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
-import { Film, Plus, Loader2, Lock, Search, Check, Calendar, Star } from 'lucide-react';
+import { Film, Plus, Loader2, Lock, Search, Calendar, Star, Check, RefreshCw } from 'lucide-react';
 import { useToast } from './ui/use-toast';
 import { apiService } from '../services/apiService';
 import { LoginModal } from './LoginModal';
@@ -21,7 +19,10 @@ interface OrderMovieFormProps {
     showTrigger?: boolean;
 }
 
+let renderCount = 0;
 export function OrderMovieForm({ onOrderSubmitted, isOpen: externalIsOpen, onClose, showTrigger = true }: OrderMovieFormProps) {
+    renderCount++;
+
     const [internalIsOpen, setInternalIsOpen] = useState(false);
 
     // Utiliser l'état externe si fourni, sinon l'état interne
@@ -34,155 +35,181 @@ export function OrderMovieForm({ onOrderSubmitted, isOpen: externalIsOpen, onClo
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [showLoginModal, setShowLoginModal] = useState(false);
 
-    // États pour la recherche TMDB
-    const [searchQuery, setSearchQuery] = useState('');
-    const [searchResults, setSearchResults] = useState<TMDBMovie[]>([]);
-    const [isSearching, setIsSearching] = useState(false);
+    // États pour le wheel picker TMDB
+    const [wheelMovies, setWheelMovies] = useState<TMDBMovie[]>([]);
     const [selectedMovie, setSelectedMovie] = useState<TMDBMovie | null>(null);
-    const [showSearchResults, setShowSearchResults] = useState(false);
-    const [selectedIndex, setSelectedIndex] = useState(-1);
+    const [isLoadingMovies, setIsLoadingMovies] = useState(false);
+    const [currentSearchQuery, setCurrentSearchQuery] = useState('');
+    const [hasSearched, setHasSearched] = useState(false);
+    const [searchValue, setSearchValue] = useState(''); // Valeur de recherche simple
+    const searchInputRef = useRef<HTMLInputElement>(null);
+    const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     const { toast } = useToast();
 
-    // Recherche TMDB avec debounce
-    const searchMovies = useCallback(async (query: string) => {
+    // Recherche TMDB pour le wheel picker - VERSION ULTRA STABLE
+    const searchMoviesForWheel = useCallback(async (query: string): Promise<void> => {
         if (!query.trim() || query.length < 2) {
-            setSearchResults([]);
-            setShowSearchResults(false);
+            // Utiliser requestAnimationFrame pour éviter re-render immédiat
+            requestAnimationFrame(() => {
+                setWheelMovies([]);
+                setHasSearched(false);
+                setSelectedMovie(null); // Important: reset selection
+            });
             return;
         }
 
-        setIsSearching(true);
+        // NE PAS CHANGER isLoadingMovies pendant la frappe pour éviter re-render
         try {
-            console.log('🔍 Recherche TMDB:', query);
+            console.log('🔍 Recherche TMDB pour wheel picker:', query);
             const results = await tmdbService.searchMovie(query);
-            console.log('✅ Résultats TMDB:', results.length);
-            setSearchResults(results);
-            setShowSearchResults(results.length > 0);
+            console.log('✅ Résultats TMDB pour wheel picker:', results.length);
+
+            // Utiliser requestAnimationFrame pour différer les setState et éviter re-render immédiat
+            requestAnimationFrame(() => {
+                console.log('📊 DISPLAYING RESULTS for:', query);
+                setWheelMovies(results);
+                setCurrentSearchQuery(query);
+                setHasSearched(true);
+                setSelectedMovie(null); // Reset selection pour éviter auto-sélection
+                console.log('🎯 Résultats affichés:', results.length, 'films');
+
+                // Remettre le focus APRÈS les résultats affichés
+                setTimeout(() => {
+                    if (searchInputRef.current) {
+                        console.log('🎯 REFOCUSING INPUT after results');
+                        searchInputRef.current.focus();
+                    }
+                }, 50);
+            });
         } catch (error) {
             console.error('❌ Erreur recherche TMDB:', error);
-            toast({
-                title: "Erreur de recherche",
-                description: "Impossible de rechercher les films pour le moment",
-                variant: "destructive",
-            });
-        } finally {
-            setIsSearching(false);
+            console.error('Erreur recherche TMDB:', error);
         }
-    }, [toast]);
+    }, []); // AUCUNE dépendance pour éviter les re-renders
 
-    // Debounce pour la recherche
+    // Recherche initiale pour le wheel picker (films populaires)
     useEffect(() => {
-        if (!searchQuery.trim()) {
-            setSearchResults([]);
-            setShowSearchResults(false);
+        const loadInitialMovies = async () => {
+            setIsLoadingMovies(true);
+            try {
+                console.log('🎬 Chargement initial des films populaires...');
+                // Charger quelques films populaires pour commencer
+                const results = await tmdbService.searchMovie("popular");
+                console.log('✅ Films populaires chargés:', results.length);
+                // Utiliser requestAnimationFrame pour éviter re-render immédiat au montage
+                requestAnimationFrame(() => {
+                    setWheelMovies(results.slice(0, 20)); // Limiter à 20 films
+                    setHasSearched(true);
+                    setCurrentSearchQuery("Films populaires");
+                    setIsLoadingMovies(false);
+                });
+            } catch (error) {
+                console.error('❌ Erreur chargement initial:', error);
+                requestAnimationFrame(() => {
+                    setWheelMovies([]);
+                    setHasSearched(false);
+                    setIsLoadingMovies(false);
+                });
+            }
+        };
+
+        // Charger seulement au montage initial
+        loadInitialMovies();
+    }, []); // Uniquement au montage
+
+    // Fonction pour recharger les films populaires - VERSION ULTRA STABLE
+    const loadPopularMovies = useCallback(async () => {
+        console.log('🔧 loadPopularMovies EXECUTED'); // DEBUG: voir quand la fonction est appelée
+        setIsLoadingMovies(true);
+        try {
+            console.log('🔄 Rechargement des films populaires...');
+            const results = await tmdbService.searchMovie("popular");
+            console.log('✅ Films populaires rechargés:', results.length);
+            requestAnimationFrame(() => {
+                setWheelMovies(results.slice(0, 20));
+                setHasSearched(true);
+                setCurrentSearchQuery("Films populaires");
+                setSearchValue(""); // Vider le champ de recherche
+                setIsLoadingMovies(false);
+                // Remettre le focus sur l'input après rechargement
+                if (searchInputRef.current) {
+                    searchInputRef.current.focus();
+                }
+            });
+        } catch (error) {
+            console.error('❌ Erreur rechargement:', error);
+            console.error('Erreur chargement films populaires:', error);
+            setIsLoadingMovies(false);
+        }
+    }, []); // AUCUNE dépendance pour éviter les re-renders
+
+    const handleMovieSelect = useCallback((movie: TMDBMovie) => {
+        console.log('🔧 handleMovieSelect EXECUTED'); // DEBUG: voir quand la fonction est appelée
+        console.log('🎬 Film sélectionné MANUELLEMENT:', movie.title);
+
+        // Utiliser requestAnimationFrame pour grouper les setState
+        requestAnimationFrame(() => {
+            setSelectedMovie(movie);
+            setTitle(movie.title);
+
+            // Générer un commentaire automatique avec les infos du film
+            const releaseYear = new Date(movie.release_date).getFullYear();
+            const autoComment = `${movie.title} (${releaseYear}) - Note: ${movie.vote_average}/10`;
+            setComment(autoComment);
+
+            console.log('✅ Film sélectionné:', movie.title, `(${releaseYear})`);
+        });
+    }, []); // AUCUNE dépendance pour éviter les re-renders
+
+    // Recherche prédictive avec debounce - VERSION ULTRA STABLE
+    useEffect(() => {
+        console.log('🎯 useEffect EXECUTED - searchValue:', searchValue); // DEBUG: voir quand useEffect s'exécute
+
+        // Nettoyer l'ancien timer
+        if (searchTimeoutRef.current) {
+            clearTimeout(searchTimeoutRef.current);
+        }
+
+        const trimmedValue = searchValue.trim();
+
+        // Si vide ou trop court, ne rien faire
+        if (!trimmedValue || trimmedValue.length < 3) {
+            console.log('⏭️ useEffect SKIPPED - too short:', trimmedValue.length);
             return;
         }
 
-        const timer = setTimeout(() => {
-            searchMovies(searchQuery);
+        console.log('⏰ useEffect SETTING TIMEOUT for:', trimmedValue);
+        // Lancer la recherche avec debounce DIRECTEMENT
+        searchTimeoutRef.current = setTimeout(() => {
+            console.log('🔍 Recherche prédictive:', trimmedValue);
+            searchMoviesForWheel(trimmedValue);
         }, 500); // 500ms de debounce
 
-        return () => clearTimeout(timer);
-    }, [searchQuery, searchMovies]);
+        return () => {
+            if (searchTimeoutRef.current) {
+                clearTimeout(searchTimeoutRef.current);
+            }
+        };
+    }, [searchValue, searchMoviesForWheel]); // Ajouter searchMoviesForWheel pour ESLint
 
-    const handleMovieSelect = useCallback((movie: TMDBMovie) => {
-        console.log('🎬 Film sélectionné:', movie.title);
-        setSelectedMovie(movie);
-        setTitle(movie.title);
-        setSearchQuery(movie.title);
-        setShowSearchResults(false);
-        setSelectedIndex(-1);
 
-        // Générer un commentaire automatique avec les infos du film
-        const releaseYear = new Date(movie.release_date).getFullYear();
-        const autoComment = `${movie.title} (${releaseYear}) - Note: ${movie.vote_average}/10`;
-        setComment(autoComment);
-
-        toast({
-            title: "Film sélectionné",
-            description: `${movie.title} (${releaseYear})`,
-        });
-    }, [toast]);
-
-    // Gérer l'ouverture du Popover quand on commence à taper
-    useEffect(() => {
-        if (searchQuery.length >= 2 && searchResults.length > 0) {
-            setShowSearchResults(true);
+    // Gestionnaire pour la recherche manuelle (bouton ou Enter)
+    const handleSearchSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        const query = searchValue.trim();
+        if (query) {
+            console.log('🔍 Lancement recherche manuelle:', query);
+            searchMoviesForWheel(query);
         }
-    }, [searchQuery, searchResults]);
+    };
 
-    // Gestionnaire d'événements clavier pour la navigation
-    const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-        if (!showSearchResults || searchResults.length === 0) return;
-
-        // Debug: décommentez pour voir les codes de touches
-        // console.log('Key pressed:', e.key, 'keyCode:', e.keyCode, 'code:', e.code);
-
-        switch (e.key) {
-            case 'ArrowDown':
-            case 'Down': // Pavé numérique Mac
-                e.preventDefault();
-                setSelectedIndex(prev =>
-                    prev < searchResults.length - 1 ? prev + 1 : 0
-                );
-                break;
-            case 'ArrowUp':
-            case 'Up': // Pavé numérique Mac
-                e.preventDefault();
-                setSelectedIndex(prev =>
-                    prev > 0 ? prev - 1 : searchResults.length - 1
-                );
-                break;
-            case 'Enter':
-            case 'NumpadEnter': // Enter du pavé numérique
-                e.preventDefault();
-                if (selectedIndex >= 0 && selectedIndex < searchResults.length) {
-                    handleMovieSelect(searchResults[selectedIndex]);
-                }
-                break;
-            case 'Escape':
-                e.preventDefault();
-                setShowSearchResults(false);
-                setSelectedIndex(-1);
-                break;
+    // Gestionnaire pour la sélection dans le wheel picker
+    const handleWheelSelect = useCallback((index: number) => {
+        if (wheelMovies[index]) {
+            handleMovieSelect(wheelMovies[index]);
         }
-
-        // Gestion par keyCode pour les pavés numériques Mac
-        switch (e.keyCode) {
-            case 40: // Flèche bas (keyCode)
-            case 98: // Pavé numérique 2 (bas)
-                e.preventDefault();
-                setSelectedIndex(prev =>
-                    prev < searchResults.length - 1 ? prev + 1 : 0
-                );
-                break;
-            case 38: // Flèche haut (keyCode)
-            case 104: // Pavé numérique 8 (haut)
-                e.preventDefault();
-                setSelectedIndex(prev =>
-                    prev > 0 ? prev - 1 : searchResults.length - 1
-                );
-                break;
-            case 13: // Enter
-            case 108: // Pavé numérique Enter
-                e.preventDefault();
-                if (selectedIndex >= 0 && selectedIndex < searchResults.length) {
-                    handleMovieSelect(searchResults[selectedIndex]);
-                }
-                break;
-            case 27: // Escape
-                e.preventDefault();
-                setShowSearchResults(false);
-                setSelectedIndex(-1);
-                break;
-        }
-    }, [showSearchResults, searchResults, selectedIndex, handleMovieSelect]);
-
-    // Reset selectedIndex quand les résultats changent
-    useEffect(() => {
-        setSelectedIndex(-1);
-    }, [searchResults]);
+    }, [wheelMovies, handleMovieSelect]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -335,127 +362,131 @@ export function OrderMovieForm({ onOrderSubmitted, isOpen: externalIsOpen, onClo
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <div className="space-y-2">
                             <Label htmlFor="movie-search">Rechercher un film *</Label>
-                            <Popover
-                                open={showSearchResults}
-                                onOpenChange={(open) => {
-                                    setShowSearchResults(open);
-                                    if (!open) {
-                                        setSelectedIndex(-1);
-                                    }
-                                }}
-                            >
-                                <PopoverTrigger asChild>
-                                    <div className="relative">
+
+                            {/* Barre de recherche */}
+                            <div className="space-y-2">
+                                <div className="flex gap-2">
+                                    <div className="relative flex-1">
                                         <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                                         <Input
-                                            id="movie-search"
-                                            value={searchQuery}
-                                            onChange={(e) => {
-                                                setSearchQuery(e.target.value);
-                                                setTitle(e.target.value); // Synchroniser avec le titre
-                                            }}
-                                            onKeyDown={handleKeyDown}
+                                            ref={searchInputRef}
+                                            value={searchValue}
                                             placeholder="Rechercher un film sur TMDB..."
                                             className="pl-10"
-                                            disabled={isSubmitting}
+                                            disabled={isSubmitting || isLoadingMovies}
+                                            onChange={(e) => {
+                                                console.log('⌨️ INPUT onChange:', e.target.value);
+                                                setSearchValue(e.target.value);
+                                            }}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    handleSearchSubmit(e);
+                                                }
+                                            }}
                                         />
-                                        {isSearching && (
-                                            <div className="absolute right-1 top-3 flex items-center gap-1">
+                                        {isLoadingMovies && (
+                                            <div className="absolute right-3 top-3">
                                                 <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                                                <span className="text-xs text-muted-foreground">Recherche...</span>
                                             </div>
                                         )}
                                     </div>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-[500px] max-w-[90vw] p-0" align="start">
-                                    <Command shouldFilter={false}>
-                                        <CommandInput
-                                            placeholder="Tapez pour rechercher..."
-                                            className="sr-only"
-                                            value={searchQuery}
-                                            onValueChange={setSearchQuery}
-                                        />
-                                        <CommandList className="max-h-[300px] overflow-y-auto scrollbar-thin scrollbar-thumb-muted-foreground scrollbar-track-muted">
-                                            <CommandEmpty>
-                                                {isSearching ? (
-                                                    <div className="flex items-center justify-center gap-2 py-4">
-                                                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                                                        <span>Recherche en cours...</span>
-                                                    </div>
-                                                ) : (
-                                                    "Aucun film trouvé pour cette recherche"
-                                                )}
-                                            </CommandEmpty>
-                                            <CommandGroup>
-                                                {searchResults.length > 0 && (
-                                                    <div className="px-2 py-1 text-xs text-muted-foreground border-b bg-muted/30">
-                                                        {searchResults.length} film{searchResults.length > 1 ? 's' : ''} trouvé{searchResults.length > 1 ? 's' : ''} • ↑↓ (ou pavé num.) • ↵ pour sélectionner
-                                                    </div>
-                                                )}
-                                                {searchResults.map((movie, index) => (
-                                                    <CommandItem
-                                                        key={movie.id}
-                                                        value={movie.title}
-                                                        onSelect={() => handleMovieSelect(movie)}
-                                                        className={`flex items-center space-x-2 p-2 cursor-pointer group ${index === selectedIndex
-                                                            ? 'bg-accent border-l-2 border-primary'
-                                                            : 'hover:bg-accent'
-                                                            }`}
-                                                    >
-                                                        <div className="flex-shrink-0 w-10 h-14 bg-muted rounded overflow-hidden">
-                                                            {movie.poster_path ? (
-                                                                <img
-                                                                    src={tmdbService.getImageUrl(movie.poster_path, 'w200')}
-                                                                    alt={movie.title}
-                                                                    className="w-full h-full object-cover"
-                                                                />
-                                                            ) : (
-                                                                <div className="w-full h-full flex items-center justify-center text-muted-foreground">
-                                                                    <Film className="h-6 w-6" />
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                        <div className="flex-1 min-w-0">
-                                                            <div className="font-medium text-sm truncate">{movie.title}</div>
-                                                            <div className="text-xs text-muted-foreground flex items-center gap-2">
-                                                                <Calendar className="h-2.5 w-2.5" />
-                                                                {new Date(movie.release_date).getFullYear()}
-                                                                <Star className="h-2.5 w-2.5" />
-                                                                {movie.vote_average.toFixed(1)}
-                                                            </div>
-                                                            {movie.overview && (
-                                                                <div className="text-xs text-muted-foreground mt-1 overflow-hidden" style={{
-                                                                    display: '-webkit-box',
-                                                                    WebkitLineClamp: 1,
-                                                                    WebkitBoxOrient: 'vertical'
-                                                                }}>
-                                                                    {movie.overview}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                        {index === selectedIndex ? (
-                                                            <Check className="h-4 w-4 text-primary" />
+                                    <Button
+                                        onClick={handleSearchSubmit}
+                                        disabled={isLoadingMovies || isSubmitting || !searchValue.trim()}
+                                        className="bg-yellow-500 text-black"
+                                    >
+                                        <Search className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        onClick={loadPopularMovies}
+                                        disabled={isLoadingMovies || isSubmitting}
+                                        title="Recharger les films populaires"
+                                    >
+                                        <RefreshCw className="h-4 w-4" />
+                                    </Button>
+                                </div>
+
+                                {/* Affichage de la recherche actuelle */}
+                                {(hasSearched || isLoadingMovies) && (
+                                    <div className="text-xs text-muted-foreground flex items-center gap-2">
+                                        {isLoadingMovies && (
+                                            <>
+                                                <div className="animate-spin rounded-full h-3 w-3 border-b border-muted-foreground"></div>
+                                                <span>Recherche en cours...</span>
+                                            </>
+                                        )}
+
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Wheel Picker - Version simplifiée */}
+                            {hasSearched && wheelMovies.length > 0 && (
+                                <div className="space-y-4">
+                                    <div className="text-center">
+
+                                        {!selectedMovie && (
+                                            <p className="text-xs text-orange-600 mt-1">
+                                                Aucun film sélectionné - Continuez à taper ou choisissez un film
+                                            </p>
+                                        )}
+                                    </div>
+
+                                    <div className="max-h-60 overflow-y-auto border rounded-lg p-2 space-y-2">
+                                        {wheelMovies.map((movie, index) => (
+                                            <div
+                                                key={movie.id}
+                                                onClick={() => handleWheelSelect(index)}
+                                                className={`p-3 rounded-lg cursor-pointer transition-all hover:bg-purple-950 hover:shadow-md ${selectedMovie?.id === movie.id
+                                                    ? 'bg-primary/10 border-2 border-primary shadow-sm'
+                                                    : 'border border-transparent hover:border-accent'
+                                                    }`}
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <div className="flex-shrink-0 w-12 h-16 bg-muted rounded overflow-hidden">
+                                                        {movie.poster_path ? (
+                                                            <img
+                                                                src={tmdbService.getImageUrl(movie.poster_path, 'w200')}
+                                                                alt={movie.title}
+                                                                className="w-full h-full object-cover"
+                                                            />
                                                         ) : (
-                                                            <Check className="h-4 w-4 text-green-500 opacity-0 group-hover:opacity-100" />
+                                                            <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+                                                                <Film className="h-6 w-6" />
+                                                            </div>
                                                         )}
-                                                    </CommandItem>
-                                                ))}
-                                                {searchResults.length > 6 && (
-                                                    <div className="px-2 py-2 text-xs text-muted-foreground border-t text-center bg-gradient-to-t from-background to-transparent">
-                                                        📜 Défiler pour voir tous les films • 🖱️ ou ↑↓
                                                     </div>
-                                                )}
-                                            </CommandGroup>
-                                        </CommandList>
-                                    </Command>
-                                </PopoverContent>
-                            </Popover>
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="font-medium text-sm">{movie.title}</div>
+                                                        <div className="text-xs text-muted-foreground flex items-center gap-2">
+                                                            <Calendar className="h-2.5 w-2.5" />
+                                                            {new Date(movie.release_date).getFullYear()}
+                                                            <Star className="h-2.5 w-2.5" />
+                                                            {movie.vote_average.toFixed(1)}/10
+                                                        </div>
+                                                    </div>
+                                                    {selectedMovie?.id === movie.id && (
+                                                        <div className="text-primary">
+                                                            <Check className="h-5 w-5" />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    <div className="text-center">
+
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Affichage du film sélectionné */}
-                            {selectedMovie && (
-                                <div className="mt-3 p-2 bg-accent rounded-lg">
-                                    <div className="flex items-center gap-2">
-                                        <div className="flex-shrink-0 w-12 h-16 bg-muted rounded overflow-hidden">
+                            {selectedMovie ? (
+                                <div className="mt-4 p-4 bg-yellow-200 rounded-lg border-2 border-primary/20">
+                                    <div className="flex items-center gap-3">
+                                        <div className="flex-shrink-0 w-16 h-24 bg-muted rounded overflow-hidden">
                                             {selectedMovie.poster_path ? (
                                                 <img
                                                     src={tmdbService.getImageUrl(selectedMovie.poster_path, 'w200')}
@@ -463,46 +494,89 @@ export function OrderMovieForm({ onOrderSubmitted, isOpen: externalIsOpen, onClo
                                                     className="w-full h-full object-cover"
                                                 />
                                             ) : (
-                                                <div className="w-full h-full flex items-center justify-center text-muted-foreground">
-                                                    <Film className="h-6 w-6" />
+                                                <div className="w-full h-full flex items-center justify-center text-black">
+                                                    <Film className="h-8 w-8" />
                                                 </div>
                                             )}
                                         </div>
-                                        <div className="flex-1">
-                                            <div className="font-medium text-sm">{selectedMovie.title}</div>
-                                            <div className="text-xs text-muted-foreground flex items-center gap-3">
+                                        <div className="flex-1 min-w-0">
+                                            <div className="font-medium text-base text-black">{selectedMovie.title}</div>
+                                            <div className="text-sm text-black flex items-center gap-3 mt-1">
                                                 <span className="flex items-center gap-1">
-                                                    <Calendar className="h-2.5 w-2.5" />
+                                                    <Calendar className="h-3 w-3" />
                                                     {new Date(selectedMovie.release_date).getFullYear()}
                                                 </span>
                                                 <span className="flex items-center gap-1">
-                                                    <Star className="h-2.5 w-2.5" />
+                                                    <Star className="h-3 w-3" />
                                                     {selectedMovie.vote_average.toFixed(1)}/10
                                                 </span>
                                             </div>
+                                            {selectedMovie.overview && (
+                                                <div className="text-xs text-black mt-2 overflow-hidden" style={{
+                                                    display: '-webkit-box',
+                                                    WebkitLineClamp: 2,
+                                                    WebkitBoxOrient: 'vertical'
+                                                }}>
+                                                    {selectedMovie.overview}
+                                                </div>
+                                            )}
                                         </div>
-                                        <Badge variant="secondary" className="text-xs">
-                                            Sélectionné
+                                        <Badge variant="outline" className="text-sm text-black bg-green-100">
+                                            ✅ Sélectionné
                                         </Badge>
                                     </div>
+                                </div>
+                            ) : hasSearched && wheelMovies.length > 0 && (
+                                <div className="mt-4 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                                    <div className="flex items-center gap-2 text-orange-700">
+                                        <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+                                        <p className="text-sm">
+                                            <strong>Aucun film sélectionné</strong> - Cliquez sur un film dans la liste ci-dessus pour le choisir
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Message d'aide */}
+                            {!hasSearched && !isLoadingMovies && (
+                                <div className="text-center py-8 text-muted-foreground">
+                                    <Film className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                                    <p className="text-sm">
+                                        Tapez pour rechercher un film automatiquement
+                                    </p>
+                                    <p className="text-xs mt-1">
+                                        🔍 Recherche prédictive • 📱 Cliquez pour sélectionner
+                                    </p>
+                                    <p className="text-xs mt-2 text-primary/70">
+                                        Les résultats apparaissent après 3 caractères • Aucun film pré-sélectionné
+                                    </p>
+                                </div>
+                            )}
+
+                            {/* Message de chargement */}
+                            {isLoadingMovies && (
+                                <div className="text-center py-8 text-muted-foreground">
+                                    <Loader2 className="h-12 w-12 mx-auto mb-4 animate-spin opacity-50" />
+                                    <p className="text-sm">
+                                        Recherche en cours...
+                                    </p>
+                                </div>
+                            )}
+
+                            {/* Message quand pas de résultats */}
+                            {hasSearched && !isLoadingMovies && wheelMovies.length === 0 && (
+                                <div className="text-center py-8 text-muted-foreground border border-dashed rounded-lg">
+                                    <Film className="h-12 w-12 mx-auto mb-4 opacity-30" />
+                                    <p className="text-sm mb-2">
+                                        Aucun film trouvé pour "{currentSearchQuery}"
+                                    </p>
+                                    <p className="text-xs">
+                                        Essayez avec un autre terme de recherche
+                                    </p>
                                 </div>
                             )}
                         </div>
 
-                        <div className="space-y-2">
-                            <Label htmlFor="comment">Commentaire (optionnel)</Label>
-                            <Textarea
-                                id="comment"
-                                value={comment}
-                                onChange={(e) => setComment(e.target.value)}
-                                placeholder="Précisez l'année, la version, ou toute autre information utile..."
-                                rows={3}
-                                disabled={isSubmitting}
-                            />
-                            <p className="text-xs text-muted-foreground">
-                                Vous pouvez préciser l'année, la version, ou toute autre information qui nous aidera à trouver le bon film.
-                            </p>
-                        </div>
 
                         <div className="flex justify-end gap-2 pt-4">
                             <Button
@@ -510,10 +584,11 @@ export function OrderMovieForm({ onOrderSubmitted, isOpen: externalIsOpen, onClo
                                 variant="outline"
                                 onClick={() => setIsOpen(false)}
                                 disabled={isSubmitting}
+                                className="bg-red-500 text-white"
                             >
                                 Annuler
                             </Button>
-                            <Button type="submit" disabled={isSubmitting}>
+                            <Button type="submit" disabled={isSubmitting} className="bg-yellow-500 text-black">
                                 {isSubmitting ? (
                                     <>
                                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />

@@ -9,18 +9,19 @@ datasource db {
 }
 
 model User {
-  id            Int            @id @default(autoincrement())
-  email         String         @unique
-  name          String
-  password      String
-  createdAt     DateTime       @default(now())
-  isActive      Boolean        @default(true)
-  lastLoginAt   DateTime?
-  role          UserRole       @default(USER)
-  updatedAt     DateTime       @default(now())
-  adminActions  AdminAction[]
-  movieRequests MovieRequest[]
-  reviews       Review[]
+  id                     Int                       @id @default(autoincrement())
+  email                  String                    @unique
+  name                   String
+  password               String
+  createdAt              DateTime                  @default(now())
+  isActive               Boolean                   @default(true)
+  lastLoginAt            DateTime?
+  role                   UserRole                  @default(USER)
+  updatedAt              DateTime                  @default(now())
+  adminActions           AdminAction[]
+  movieRequests          MovieRequest[]
+  reviews                Review[]
+  processedRegistrations UserRegistrationRequest[]
 
   @@map("users")
 }
@@ -129,7 +130,27 @@ model MovieRequest {
   @@map("movie_requests")
 }
 
+model UserRegistrationRequest {
+  id          Int                @id @default(autoincrement())
+  email       String
+  name        String
+  status      RegistrationStatus @default(PENDING)
+  requestedAt DateTime           @default(now())
+  processedAt DateTime?
+  adminNotes  String?
+  adminId     Int?
+  admin       User?              @relation(fields: [adminId], references: [id])
+
+  @@map("user_registration_requests")
+}
+
 enum UserRole {
   USER
   ADMIN
+}
+
+enum RegistrationStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }

@@ -1,3 +1,5 @@
+import type { PaginatedResponse } from "../../server/types/common.js";
+
 export interface APIMovie {
   id: number;
   title: string;
@@ -20,20 +22,15 @@ export interface APIGenre {
   name: string;
 }
 
-export interface PaginatedResponse<T> {
-  data: T;
-  pagination: {
-    currentPage: number;
-    totalPages: number;
-    totalItems: number;
-    itemsPerPage: number;
-  };
-}
-
-export interface MoviesResponse
-  extends PaginatedResponse<{ movies: APIMovie[] }> {
+export interface MoviesResponse {
   data: {
     movies: APIMovie[];
+    pagination: {
+      currentPage: number;
+      totalPages: number;
+      totalItems: number;
+      itemsPerPage: number;
+    };
   };
 }
 
@@ -227,10 +224,13 @@ class APIService {
 
     try {
       console.log("📡 Envoi de la requête fetch...");
-      const result = await this.request("/movie-requests", {
-        method: "POST",
-        body: JSON.stringify(data),
-      });
+      const result = await this.request<CreateMovieRequestResponse>(
+        "/movie-requests",
+        {
+          method: "POST",
+          body: JSON.stringify(data),
+        }
+      );
       console.log("✅ API Service - Réponse reçue:", result);
       return result;
     } catch (error) {

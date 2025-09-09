@@ -3,6 +3,8 @@ import { SearchBar } from "@/components/ui/search-bar";
 import { Film, User, LogIn, LogOut, Settings, Shield } from "lucide-react";
 import { useState, useEffect } from "react";
 import { LoginModal } from "./LoginModal";
+import { SignUpModal } from "./SignUpModal";
+import { ForgotPasswordModal } from "./ForgotPasswordModal";
 import { apiService } from "../services/apiService";
 import { Badge } from "@/components/ui/badge";
 
@@ -20,6 +22,8 @@ interface HeaderProps {
 
 export function Header({ onSearch, onAdminPanelClick }: HeaderProps) {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [isSignUpModalOpen, setIsSignUpModalOpen] = useState(false);
+  const [isForgotPasswordModalOpen, setIsForgotPasswordModalOpen] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -124,7 +128,11 @@ export function Header({ onSearch, onAdminPanelClick }: HeaderProps) {
                     <LogIn className="h-4 w-4 mr-2" />
                     Connexion
                   </Button>
-                  <Button variant="outline" size="sm">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsSignUpModalOpen(true)}
+                  >
                     <User className="h-4 w-4 mr-2" />
                     S'inscrire
                   </Button>
@@ -139,6 +147,20 @@ export function Header({ onSearch, onAdminPanelClick }: HeaderProps) {
         isOpen={isLoginModalOpen}
         onClose={() => setIsLoginModalOpen(false)}
         onLoginSuccess={handleLoginSuccess}
+        onForgotPassword={() => {
+          setIsLoginModalOpen(false);
+          setIsForgotPasswordModalOpen(true);
+        }}
+      />
+
+      <SignUpModal
+        isOpen={isSignUpModalOpen}
+        onClose={() => setIsSignUpModalOpen(false)}
+      />
+
+      <ForgotPasswordModal
+        isOpen={isForgotPasswordModalOpen}
+        onClose={() => setIsForgotPasswordModalOpen(false)}
       />
     </>
   );

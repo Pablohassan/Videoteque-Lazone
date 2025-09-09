@@ -54,3 +54,6 @@ export interface MovieRequestResponse {
     email: string;
   };
 }
+
+// Note: Les types de demandes de films ont été ajoutés depuis movies.ts
+// pour consolider toutes les responsabilités liées aux demandes de films.

@@ -174,7 +174,7 @@ class MovieAutoIndexer {
       const genres = await this.tmdbClient.getGenres();
       const movieGenres =
         fullTmdbMovie.genre_ids
-          ?.map((genreId) => {
+          ?.map((genreId: number) => {
             const genre = genres.find((g) => g.id === genreId);
             return genre?.name;
           })
@@ -330,15 +330,13 @@ class MovieAutoIndexer {
           success: true,
         });
 
-        console.log(`   💾 Sauvegardé en base (ID: ${dbMovie.id})`);
-
         // Pause pour éviter de surcharger l'API TMDB
         await new Promise((resolve) => setTimeout(resolve, 250));
       } catch (error) {
         results.push({
           parsed: movie,
           success: false,
-          error: error instanceof Error ? error.message : error,
+          error: error instanceof Error ? error.message : String(error),
         });
         console.log(
           `   ❌ Erreur: ${error instanceof Error ? error.message : error}`

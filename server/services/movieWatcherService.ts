@@ -2,17 +2,24 @@ import chokidar, { FSWatcher } from "chokidar";
 import path from "path";
 import fs from "fs";
 import { movieIndexingService } from "./movieIndexingService.js";
+import {
+  validateFolderPath,
+  WatcherOptionsSchema,
+  type WatcherOptions,
+} from "../schemas/movies.js";
+import {
+  createWatcherStartFailedError,
+  createWatcherStopFailedError,
+  createWatcherAlreadyRunningError,
+  createWatcherNotRunningError,
+  createMovieFolderNotFoundError,
+  createMovieFolderNotAccessibleError,
+  createInvalidFileExtensionError,
+  createFileNotAccessibleError,
+} from "../utils/errors.js";
 
-interface WatcherOptions {
-  /** Chemin du dossier à surveiller */
-  watchPath?: string;
-  /** Extensions de fichiers à surveiller */
-  extensions?: string[];
-  /** Délai avant traitement (en ms) pour éviter les doublons */
-  debounceMs?: number;
-  /** Mode de surveillance récursive */
-  recursive?: boolean;
-}
+// Utiliser le type WatcherOptions importé du schéma
+// interface WatcherOptions est maintenant définie dans schemas/movies.ts
 
 /**
  * Service de surveillance automatique des fichiers de films
@@ -25,7 +32,7 @@ export class MovieWatcherService {
   private debounceTimers = new Map<string, NodeJS.Timeout>();
 
   private options: Required<WatcherOptions> = {
-    watchPath: movieIndexingService.getMoviesFolderPath(),
+    watchPath: movieIndexingService.getMoviesFolderPath(), // Chemin relatif pour la validation
     extensions: [
       ".mp4",
       ".mkv",
@@ -38,6 +45,11 @@ export class MovieWatcherService {
     ],
     debounceMs: 2000, // 2 secondes
     recursive: true,
+    ignoreInitial: true,
+    awaitWriteFinish: {
+      stabilityThreshold: 1000,
+      pollInterval: 100,
+    },
   };
 
   constructor(options?: WatcherOptions) {
@@ -51,17 +63,24 @@ export class MovieWatcherService {
    */
   async start(): Promise<void> {
     if (this.isRunning) {
-      console.log(
-        "🔄 Le service de surveillance est déjà en cours d'exécution"
-      );
-      return;
+      throw createWatcherAlreadyRunningError();
     }
 
     try {
-      // Vérifier que le dossier existe
-      if (!fs.existsSync(this.options.watchPath)) {
-        throw new Error(`Le dossier ${this.options.watchPath} n'existe pas`);
-      }
+      // Forcer la revalidation du chemin au cas où les variables d'environnement ont changé
+      const currentPath = movieIndexingService.getMoviesFolderPath();
+      console.log(`🔍 [MovieWatcherService] Chemin actuel: ${currentPath}`);
+      console.log(
+        `📋 [MovieWatcherService] Est-ce absolu ? ${path.isAbsolute(
+          currentPath
+        )}`
+      );
+
+      // Mettre à jour les options avec le chemin actuel
+      this.options.watchPath = currentPath;
+
+      // Valider et vérifier l'accès au dossier
+      await validateFolderPath(this.options.watchPath);
 
       console.log(`👀 Démarrage de la surveillance automatique:`);
       console.log(`   📁 Dossier: ${this.options.watchPath}`);
@@ -82,17 +101,24 @@ export class MovieWatcherService {
         depth: this.options.recursive ? undefined : 0,
       };
 
-      // Créer le watcher
-      this.watcher = chokidar.watch(this.options.watchPath, watcherOptions);
+      // Créer le watcher avec le chemin absolu (nécessaire pour Chokidar)
+      const absoluteWatchPath =
+        movieIndexingService.getMoviesFolderAbsolutePath();
+      console.log(`🔍 Démarrage de Chokidar sur: ${absoluteWatchPath}`);
+      this.watcher = chokidar.watch(absoluteWatchPath, watcherOptions);
 
       // Événements à écouter
       this.watcher.on("add", this.handleFileAdded.bind(this));
       this.watcher.on("change", this.handleFileChanged.bind(this));
       this.watcher.on("unlink", this.handleFileRemoved.bind(this));
-      this.watcher.on("error", this.handleError.bind(this));
+      this.watcher.on("error", (err: unknown) =>
+        this.handleError(err as Error)
+      );
 
       this.isRunning = true;
-      console.log("✅ Surveillance automatique démarrée avec succès");
+      console.log(
+        `✅ Surveillance automatique démarrée avec succès sur ${this.options.watchPath}`
+      );
     } catch (error) {
       console.error("❌ Erreur lors du démarrage de la surveillance:", error);
       throw error;
@@ -104,10 +130,7 @@ export class MovieWatcherService {
    */
   async stop(): Promise<void> {
     if (!this.isRunning || !this.watcher) {
-      console.log(
-        "🔄 Le service de surveillance n'est pas en cours d'exécution"
-      );
-      return;
+      throw createWatcherNotRunningError();
     }
 
     try {
@@ -159,10 +182,19 @@ export class MovieWatcherService {
       newOptions.watchPath &&
       newOptions.watchPath !== this.options.watchPath
     ) {
+      // S'assurer que le nouveau chemin est relatif et valide
+      const currentPath = movieIndexingService.getMoviesFolderPath();
       console.log(
-        `🔄 Reconfiguration du dossier surveillé: ${newOptions.watchPath}`
+        `🔄 Reconfiguration du dossier surveillé: ${currentPath} (depuis ${newOptions.watchPath})`
       );
-      this.options = { ...this.options, ...updatedOptions };
+
+      // Mettre à jour avec le chemin relatif validé
+      const updatedOptionsWithRelativePath = {
+        ...updatedOptions,
+        watchPath: currentPath,
+      };
+
+      this.options = { ...this.options, ...updatedOptionsWithRelativePath };
 
       // Redémarrer si le service est en cours d'exécution
       if (this.isRunning) {
@@ -200,11 +232,25 @@ export class MovieWatcherService {
    * Gestionnaire pour les nouveaux fichiers
    */
   private handleFileAdded(filepath: string): void {
-    const ext = path.extname(filepath).toLowerCase();
+    try {
+      const ext = path.extname(filepath).toLowerCase();
 
-    if (this.options.extensions.includes(ext)) {
+      if (
+        !this.options.extensions.includes(
+          ext as (typeof this.options.extensions)[number]
+        )
+      ) {
+        // Extension non supportée - ignorer silencieusement
+        return;
+      }
+
       console.log(`📁 Nouveau fichier détecté: ${path.basename(filepath)}`);
       this.scheduleFileProcessing(filepath, "added");
+    } catch (error) {
+      console.error(
+        `❌ Erreur lors du traitement du fichier ajouté ${filepath}:`,
+        error
+      );
     }
   }
 
@@ -212,11 +258,25 @@ export class MovieWatcherService {
    * Gestionnaire pour les fichiers modifiés
    */
   private handleFileChanged(filepath: string): void {
-    const ext = path.extname(filepath).toLowerCase();
+    try {
+      const ext = path.extname(filepath).toLowerCase();
 
-    if (this.options.extensions.includes(ext)) {
+      if (
+        !this.options.extensions.includes(
+          ext as (typeof this.options.extensions)[number]
+        )
+      ) {
+        // Extension non supportée - ignorer silencieusement
+        return;
+      }
+
       console.log(`🔄 Fichier modifié: ${path.basename(filepath)}`);
       this.scheduleFileProcessing(filepath, "changed");
+    } catch (error) {
+      console.error(
+        `❌ Erreur lors du traitement du fichier modifié ${filepath}:`,
+        error
+      );
     }
   }
 
@@ -224,12 +284,26 @@ export class MovieWatcherService {
    * Gestionnaire pour les fichiers supprimés
    */
   private handleFileRemoved(filepath: string): void {
-    const ext = path.extname(filepath).toLowerCase();
+    try {
+      const ext = path.extname(filepath).toLowerCase();
 
-    if (this.options.extensions.includes(ext)) {
+      if (
+        !this.options.extensions.includes(
+          ext as (typeof this.options.extensions)[number]
+        )
+      ) {
+        // Extension non supportée - ignorer silencieusement
+        return;
+      }
+
       console.log(`🗑️  Fichier supprimé: ${path.basename(filepath)}`);
       // Pour l'instant, on ne fait rien avec les suppressions
       // TODO: Marquer comme supprimé en base ou supprimer l'entrée
+    } catch (error) {
+      console.error(
+        `❌ Erreur lors du traitement du fichier supprimé ${filepath}:`,
+        error
+      );
     }
   }
 
@@ -321,13 +395,27 @@ export class MovieWatcherService {
    * Forcer l'indexation d'un fichier spécifique
    */
   async forceIndexFile(filepath: string): Promise<void> {
-    const ext = path.extname(filepath).toLowerCase();
+    try {
+      const ext = path.extname(filepath).toLowerCase();
 
-    if (!this.options.extensions.includes(ext)) {
-      throw new Error(`Extension non supportée: ${ext}`);
+      if (
+        !this.options.extensions.includes(
+          ext as (typeof this.options.extensions)[number]
+        )
+      ) {
+        throw createInvalidFileExtensionError(ext, this.options.extensions);
+      }
+
+      // Vérifier que le fichier existe et est accessible
+      await validateFolderPath(path.dirname(filepath));
+
+      await this.processFile(filepath, "manual");
+    } catch (error) {
+      if (error instanceof Error && error.name === "AppError") {
+        throw error; // Re-throw les erreurs de validation
+      }
+      throw createFileNotAccessibleError(filepath);
     }
-
-    await this.processFile(filepath, "manual");
   }
 
   /**

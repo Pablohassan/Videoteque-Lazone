@@ -1,5 +1,6 @@
 import express from "express";
 import { adminService } from "../services/adminService.js";
+import { registrationService } from "../services/registrationService.js";
 import {
   validateBody,
   validateQuery,
@@ -18,12 +19,8 @@ import {
   requireRole,
   type PassportUser,
 } from "../middleware/passport-auth.js";
-import type {
-  AdminRequest,
-  AdminUser,
-  CreateUserRequest,
-  UpdateUserRequest,
-} from "../types/index.js";
+import type { AdminRequest, AdminUser } from "../types/index.js";
+import type { CreateUserRequest, UpdateUserRequest } from "../schemas/admin.js";
 
 const router = express.Router();
 
@@ -191,6 +188,87 @@ router.get(
     res.json({
       success: true,
       data: result,
+    });
+  })
+);
+
+// ===== REGISTRATION REQUESTS =====
+
+// Récupérer les demandes d'inscription
+router.get(
+  "/registration-requests",
+  validateQuery(paginationSchema),
+  asyncErrorHandler(async (req, res) => {
+    const { page, limit, status } = req.query;
+    const filters = {
+      page: parseInt(page as string) || 1,
+      limit: parseInt(limit as string) || 20,
+      status: status as "PENDING" | "APPROVED" | "REJECTED" | undefined,
+    };
+
+    const result = await registrationService.getRegistrationRequests(filters);
+    res.json({
+      success: true,
+      data: result,
+    });
+  })
+);
+
+// Traiter une demande d'inscription (approuver/rejeter)
+router.post(
+  "/registration-requests/:requestId/process",
+  asyncErrorHandler(async (req, res): Promise<void> => {
+    const { requestId } = req.params;
+    const { action, adminNotes } = req.body;
+    const adminId = (req.user as AdminUser).id;
+
+    if (!action || !["APPROVE", "REJECT"].includes(action)) {
+      res.status(400).json({
+        success: false,
+        error: {
+          code: "INVALID_ACTION",
+          message: "Action doit être APPROVE ou REJECT",
+        },
+      });
+      return;
+    }
+
+    const result = await registrationService.processRegistrationRequest(
+      adminId,
+      {
+        registrationId: parseInt(requestId),
+        action,
+        adminNotes,
+      }
+    );
+
+    res.json({
+      success: true,
+      data: result,
+      message:
+        action === "APPROVE"
+          ? "Demande approuvée avec succès"
+          : "Demande rejetée",
+    });
+  })
+);
+
+// Supprimer une demande d'inscription
+router.delete(
+  "/registration-requests/:requestId",
+  asyncErrorHandler(async (req, res) => {
+    const { requestId } = req.params;
+    const adminId = (req.user as AdminUser).id;
+
+    await registrationService.deleteRegistrationRequest(
+      adminId,
+      parseInt(requestId)
+    );
+    res.json({
+      success: true,
+      data: {
+        message: "Demande d'inscription supprimée avec succès",
+      },
     });
   })
 );

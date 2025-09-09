@@ -114,3 +114,70 @@ export interface AdminLogEntry {
     email: string;
   };
 }
+
+// ========================================================================
+// TYPES DE RÉPONSES ADMIN SPÉCIFIQUES
+// ========================================================================
+
+// Type pour la réponse de création d'utilisateur admin
+export interface CreateUserResponse {
+  user: {
+    id: number;
+    email: string;
+    name: string;
+    role: string;
+    isActive: boolean;
+    createdAt: Date;
+  };
+  message: string;
+}
+
+// Type pour la réponse de mise à jour d'utilisateur admin
+export interface UpdateUserResponse {
+  user: {
+    id: number;
+    email: string;
+    name: string;
+    role: string;
+    isActive: boolean;
+    updatedAt: Date;
+  };
+  message: string;
+}
+
+// Type pour la réponse de suppression d'utilisateur
+export interface DeleteUserResponse {
+  message: string;
+  deletedUserId: number;
+}
+
+// Type pour les filtres de demandes d'inscription
+export interface RegistrationFilters {
+  status?: "PENDING" | "APPROVED" | "REJECTED";
+  email?: string;
+  page?: number;
+  limit?: number;
+}
+
+// Type pour la réponse de demandes d'inscription
+export interface RegistrationRequestsResponse {
+  requests: Array<{
+    id: number;
+    email: string;
+    name: string;
+    status: "PENDING" | "APPROVED" | "REJECTED";
+    adminNotes?: string;
+    processedBy?: {
+      id: number;
+      name: string;
+    };
+    createdAt: Date;
+    processedAt?: Date;
+  }>;
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    pages: number;
+  };
+}

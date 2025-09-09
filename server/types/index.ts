@@ -29,8 +29,6 @@ export type {
   ApiResponse,
   PaginatedResponse,
   UserStats,
-  TMDBMovie,
-  TMDBGenre,
   MovieScanResult,
   ErrorDetails,
   Metadata,
@@ -40,7 +38,14 @@ export type {
   ID,
   Timestamp,
   StatusWithMetadata,
+  // Types génériques de réponse
+  MessageResponse,
+  SuccessResponse,
+  ErrorResponse,
 } from "./common.js";
+
+// Réexport des types TMDB depuis movies.ts
+export type { TMDBMovie, TMDBGenre } from "./movies.js";
 
 // Réexport des types d'authentification
 export type {
@@ -55,6 +60,9 @@ export type {
   LoginResponse,
   RegisterResponse,
   AuthError,
+  // Types de réponses spécifiques
+  PasswordResetResponse,
+  TokenVerificationResponse,
 } from "./auth.js";
 
 // Réexport des types de films
@@ -65,7 +73,6 @@ export type {
   MovieGenreData,
   MovieActorData,
   MovieResponse,
-  MovieReviewData,
   MovieFilters,
   MovieStats,
   SubtitleData,
@@ -85,31 +92,8 @@ export type {
   MovieActor,
 } from "@prisma/client";
 
-// Réexport des types Zod des schémas
-export type {
-  // Auth
-  LoginRequest,
-  RegisterRequest,
-  ChangePasswordRequest,
-
-  // Admin
-  CreateUserRequest,
-  UpdateUserRequest,
-  UserFilters,
-  PaginationQuery,
-
-  // Movies
-  MovieIdParams,
-  MoviesQuery,
-  MovieRequestPayload,
-
-  // Reviews
-  CreateReviewRequest,
-  UpdateReviewRequest,
-  ReviewIdParams,
-  ReviewsQuery,
-  CreateReviewWithMovieRequest,
-} from "../schemas";
+// Note: Les types des schémas sont maintenant importés directement depuis les schémas
+// Utilisez: import type { LoginRequest, RegisterRequest } from "../schemas/auth";
 
 // Types spécifiques à l'application (définis ci-dessus)
 export type {
@@ -124,6 +108,12 @@ export type {
   AdminUserCreateData,
   AdminUserFilters,
   AdminLogEntry,
+  // Types de réponses spécifiques
+  CreateUserResponse,
+  UpdateUserResponse,
+  DeleteUserResponse,
+  RegistrationFilters,
+  RegistrationRequestsResponse,
 } from "./admin.js";
 
 // Types d'authentification sont déjà exportés plus haut dans ce fichier
@@ -146,4 +136,13 @@ export type {
   MovieRequestPassportRequest,
   MovieRequestUser,
   MovieRequestHandler,
+  MovieRequestData,
+  MovieRequestUpdateData,
+  MovieRequestResponse,
 } from "./movieRequests.js";
+
+// Types d'inscription
+export type {
+  CreateRegistrationRequest,
+  ProcessRegistrationRequest,
+} from "./registration.js";

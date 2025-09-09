@@ -3,6 +3,7 @@ import { SubtitleService } from "../services/subtitleService.js";
 import { optionalAuth } from "../middleware/passport-auth.js";
 import fs from "fs-extra";
 import path from "path";
+import { apiServiceLogger } from "../utils/logger.js";
 
 const router = express.Router();
 const subtitleService = new SubtitleService();
@@ -13,59 +14,71 @@ const subtitleService = new SubtitleService();
  */
 router.get("/:filename", optionalAuth, async (req, res) => {
   try {
-    console.log("🔍 Route sous-titres appelée avec:", req.params, req.query);
-
     const { filename } = req.params;
     const { path: filePath } = req.query;
 
     if (!filePath || typeof filePath !== "string") {
-      console.log("❌ Paramètre 'path' manquant ou invalide");
+      apiServiceLogger.warn("Subtitle request with invalid path parameter", {
+        filename,
+      });
       return res.status(400).json({ error: "Paramètre 'path' requis" });
     }
 
-    console.log("📁 Vérification du fichier:", filePath);
-
     // Vérifier que le fichier existe
     if (!(await fs.pathExists(filePath))) {
-      console.log("❌ Fichier non trouvé:", filePath);
+      apiServiceLogger.warn("Subtitle file not found", {
+        filename,
+        requestedPath: filePath,
+      });
       return res
         .status(404)
         .json({ error: "Fichier de sous-titres non trouvé" });
     }
 
-    console.log("✅ Fichier trouvé, détection du format...");
-
     // Détecter le format du fichier
     const ext = path.extname(filename).toLowerCase();
-    console.log("📁 Extension détectée:", ext);
 
     let subtitleContent: string;
     let contentType: string;
 
     try {
       if (ext === ".vtt") {
-        console.log("📝 Lecture fichier VTT natif...");
+        apiServiceLogger.debug("Reading native VTT file", { filename, ext });
         // Fichier VTT natif
         subtitleContent = await fs.readFile(filePath, "utf-8");
         contentType = "text/vtt";
       } else if (ext === ".srt") {
-        console.log("🔄 Conversion SRT vers VTT...");
+        apiServiceLogger.debug("Converting SRT to VTT", { filename, ext });
         // Convertir SRT vers VTT
         subtitleContent = await subtitleService.convertSrtToVtt(filePath);
         contentType = "text/vtt";
       } else {
-        console.log("❌ Format non supporté:", ext);
+        apiServiceLogger.warn("Unsupported subtitle format requested", {
+          filename,
+          ext,
+        });
         // Autres formats non supportés
         return res
           .status(415)
           .json({ error: "Format de sous-titres non supporté" });
       }
 
-      console.log("✅ Contenu généré, taille:", subtitleContent.length);
+      apiServiceLogger.debug("Subtitle content generated", {
+        filename,
+        ext,
+        contentLength: subtitleContent.length,
+      });
     } catch (conversionError) {
-      console.error(
-        "❌ Erreur lors de la conversion/lecture:",
-        conversionError
+      apiServiceLogger.error(
+        "Error during subtitle conversion/reading",
+        conversionError instanceof Error
+          ? conversionError
+          : new Error(String(conversionError)),
+        {
+          filename,
+          ext,
+          filePath,
+        }
       );
       return res
         .status(500)

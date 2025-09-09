@@ -14,7 +14,7 @@ export class TMDBClient {
     );
   }
 
-  private async request(endpoint: string): Promise<any> {
+  private async request<T = unknown>(endpoint: string): Promise<T> {
     const separator = endpoint.includes("?") ? "&" : "?";
     const url = `${this.baseUrl}${endpoint}${separator}api_key=${this.apiKey}`;
     console.log("🌐 TMDB URL appelée:", url);
@@ -24,7 +24,7 @@ export class TMDBClient {
       if (!response.ok) {
         throw new Error(`TMDB API error: ${response.status}`);
       }
-      return await response.json();
+      return (await response.json()) as T;
     } catch (error) {
       console.error(`TMDB request failed for ${endpoint}:`, error);
       throw error;
@@ -37,13 +37,13 @@ export class TMDBClient {
       endpoint += `&year=${year}`;
     }
 
-    const data = await this.request(endpoint);
-    return data.results || [];
+    const data = await this.request<{ results?: TMDBMovie[] }>(endpoint);
+    return data.results ?? [];
   }
 
   async getMovie(id: number): Promise<TMDBMovie | null> {
     try {
-      const movie = await this.request(
+      const movie = await this.request<TMDBMovie>(
         `/movie/${id}?append_to_response=videos,credits`
       );
       return movie;
@@ -53,17 +53,22 @@ export class TMDBClient {
   }
 
   async getGenres(): Promise<TMDBGenre[]> {
-    const data = await this.request("/genre/movie/list");
-    return data.genres || [];
+    const data = await this.request<{ genres?: TMDBGenre[] }>(
+      "/genre/movie/list"
+    );
+    return data.genres ?? [];
   }
 
   async getPopularMovies(
     page = 1
   ): Promise<{ results: TMDBMovie[]; total_pages: number }> {
-    const data = await this.request(`/movie/popular?page=${page}`);
+    const data = await this.request<{
+      results?: TMDBMovie[];
+      total_pages?: number;
+    }>(`/movie/popular?page=${page}`);
     return {
-      results: data.results || [],
-      total_pages: data.total_pages || 0,
+      results: data.results ?? [],
+      total_pages: data.total_pages ?? 0,
     };
   }
 
@@ -72,7 +77,9 @@ export class TMDBClient {
     return `https://image.tmdb.org/t/p/${size}${path}`;
   }
 
-  getTrailerUrl(videos: any[]): string | null {
+  getTrailerUrl(
+    videos: Array<{ key: string; site: string; type: string }>
+  ): string | null {
     if (!videos || videos.length === 0) return null;
 
     const trailer = videos.find(
@@ -89,8 +96,8 @@ export class TMDBClient {
 
     return credits.cast
       .slice(0, 10) // Prendre les 10 premiers acteurs
-      .map((actor: any) => actor.name)
-      .filter(Boolean);
+      .map((actor: { name: string }) => actor.name)
+      .filter((name): name is string => Boolean(name));
   }
 }
 

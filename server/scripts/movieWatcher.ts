@@ -11,16 +11,26 @@ import { prisma } from "../utils/prisma.js";
 // Gestion propre de l'arrêt
 process.on("SIGINT", async () => {
   console.log("\n🛑 Signal d'arrêt reçu, arrêt de la surveillance...");
-  await movieWatcherService.stop();
-  await prisma.$disconnect();
-  process.exit(0);
+  try {
+    await movieWatcherService.stop();
+  } catch (error) {
+    console.error("❌ Erreur lors de l'arrêt de la surveillance:", error);
+  } finally {
+    await prisma.$disconnect();
+    process.exit(0);
+  }
 });
 
 process.on("SIGTERM", async () => {
   console.log("\n🛑 Signal de terminaison reçu, arrêt de la surveillance...");
-  await movieWatcherService.stop();
-  await prisma.$disconnect();
-  process.exit(0);
+  try {
+    await movieWatcherService.stop();
+  } catch (error) {
+    console.error("❌ Erreur lors de l'arrêt de la surveillance:", error);
+  } finally {
+    await prisma.$disconnect();
+    process.exit(0);
+  }
 });
 
 // Fonction principale
@@ -44,6 +54,22 @@ async function main() {
     process.stdin.resume();
   } catch (error) {
     console.error("❌ Erreur lors du démarrage du service:", error);
+
+    if (error instanceof Error) {
+      if (error.name === "AppError") {
+        const appError = error as Error & {
+          code?: string;
+          statusCode?: number;
+          details?: unknown;
+        };
+        console.error(`Code d'erreur: ${appError.code}`);
+        console.error(`Status HTTP: ${appError.statusCode}`);
+        if (appError.details) {
+          console.error("Détails:", appError.details);
+        }
+      }
+    }
+
     await prisma.$disconnect();
     process.exit(1);
   }
@@ -52,16 +78,26 @@ async function main() {
 // Gestion des erreurs non capturées
 process.on("uncaughtException", async (error) => {
   console.error("💥 Erreur non capturée:", error);
-  await movieWatcherService.stop();
-  await prisma.$disconnect();
-  process.exit(1);
+  try {
+    await movieWatcherService.stop();
+  } catch (stopError) {
+    console.error("❌ Erreur lors de l'arrêt d'urgence:", stopError);
+  } finally {
+    await prisma.$disconnect();
+    process.exit(1);
+  }
 });
 
 process.on("unhandledRejection", async (reason, promise) => {
   console.error("💥 Promesse rejetée non gérée:", reason);
-  await movieWatcherService.stop();
-  await prisma.$disconnect();
-  process.exit(1);
+  try {
+    await movieWatcherService.stop();
+  } catch (stopError) {
+    console.error("❌ Erreur lors de l'arrêt d'urgence:", stopError);
+  } finally {
+    await prisma.$disconnect();
+    process.exit(1);
+  }
 });
 
 // Lancer le script si appelé directement

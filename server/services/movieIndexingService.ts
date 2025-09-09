@@ -45,11 +45,42 @@ export class MovieIndexingService {
   private tmdbClient: ReturnType<typeof createTMDBClient>;
 
   constructor(moviesFolderPath?: string) {
-    const folderPath =
-      moviesFolderPath || process.env.MOVIES_FOLDER_PATH || "./movies";
+    const folderPath = moviesFolderPath || process.env.MOVIES_FOLDER_PATH;
+
+    console.log(`🎬 [MovieIndexingService] Initialisation avec: ${folderPath}`);
+    console.log(
+      `🔧 [MovieIndexingService] MOVIES_FOLDER_PATH: ${
+        process.env.MOVIES_FOLDER_PATH || "non définie"
+      }`
+    );
+    console.log(
+      `🏠 [MovieIndexingService] HOME: ${process.env.HOME || "non définie"}`
+    );
+    console.log(`📂 [MovieIndexingService] CWD: ${process.cwd()}`);
 
     // Résoudre le ~ en chemin absolu
-    this.moviesFolderPath = folderPath.replace(/^~/, process.env.HOME || "");
+    let resolvedPath = folderPath?.replace(/^~/, process.env.HOME || "");
+    console.log(
+      `🔍 [MovieIndexingService] Après résolution ~: ${resolvedPath}`
+    );
+
+    // Convertir les chemins absolus en chemins relatifs par rapport au répertoire de travail
+    if (path.isAbsolute(resolvedPath ?? "")) {
+      const originalPath = resolvedPath;
+      resolvedPath = path.relative(process.cwd(), resolvedPath ?? "");
+      console.log(
+        `🔄 [MovieIndexingService] Chemin absolu converti: ${originalPath} → ${resolvedPath}`
+      );
+    } else {
+      console.log(
+        `✅ [MovieIndexingService] Chemin déjà relatif: ${resolvedPath}`
+      );
+    }
+
+    this.moviesFolderPath = resolvedPath ?? "";
+    console.log(
+      `📁 [MovieIndexingService] Chemin final: ${this.moviesFolderPath}`
+    );
 
     // Initialiser le client TMDB
     this.tmdbClient = createTMDBClient();
@@ -262,7 +293,7 @@ export class MovieIndexingService {
       const genres = await this.tmdbClient.getGenres();
       const movieGenres =
         fullTmdbMovie.genre_ids
-          ?.map((genreId) => {
+          ?.map((genreId: number) => {
             const genre = genres.find((g) => g.id === genreId);
             return genre?.name;
           })
@@ -521,15 +552,13 @@ export class MovieIndexingService {
           success: true,
         });
 
-        console.log(`   💾 Sauvegardé en base (ID: ${dbMovie.id})`);
-
         // Pause pour éviter de surcharger l'API TMDB
         await new Promise((resolve) => setTimeout(resolve, 250));
       } catch (error) {
         results.push({
           parsed: movie,
           success: false,
-          error: error instanceof Error ? error.message : error,
+          error: error instanceof Error ? error.message : String(error),
         });
         console.log(
           `   ❌ Erreur: ${error instanceof Error ? error.message : error}`
@@ -629,10 +658,45 @@ export class MovieIndexingService {
   }
 
   /**
-   * Obtenir le chemin du dossier de films
+   * Obtenir le chemin relatif du dossier de films (pour la validation)
    */
   getMoviesFolderPath(): string {
+    // Re-valider le chemin au moment de l'appel au cas où les variables d'environnement ont changé
+    this.ensureValidPath();
     return this.moviesFolderPath;
+  }
+
+  /**
+   * Obtenir le chemin absolu du dossier de films (pour l'accès aux fichiers)
+   */
+  getMoviesFolderAbsolutePath(): string {
+    // Re-valider le chemin au moment de l'appel au cas où les variables d'environnement ont changé
+    this.ensureValidPath();
+    return path.resolve(process.cwd(), this.moviesFolderPath);
+  }
+
+  /**
+   * S'assurer que le chemin est valide et converti correctement
+   */
+  private ensureValidPath(): void {
+    const currentEnvPath = process.env.MOVIES_FOLDER_PATH;
+    const currentHome = process.env.HOME;
+
+    // Si les variables d'environnement ont changé depuis l'initialisation, re-calculer le chemin
+    const folderPath = currentEnvPath || "./movies";
+    let resolvedPath = folderPath.replace(/^~/, currentHome || "");
+
+    if (path.isAbsolute(resolvedPath)) {
+      resolvedPath = path.relative(process.cwd(), resolvedPath);
+    }
+
+    // Si le chemin a changé, mettre à jour
+    if (resolvedPath !== this.moviesFolderPath) {
+      console.log(
+        `🔄 [MovieIndexingService] Reconfiguration du chemin: ${this.moviesFolderPath} → ${resolvedPath}`
+      );
+      this.moviesFolderPath = resolvedPath;
+    }
   }
 }
 

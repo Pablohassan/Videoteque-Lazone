@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, Link } from "react-router";
 import { apiService } from "../services/apiService";
 import type { APIMovie } from "../services/apiService";
@@ -23,13 +23,9 @@ export default function MovieDetail() {
     const [submittingReview, setSubmittingReview] = useState(false);
     const { toast } = useToast();
 
-    useEffect(() => {
-        if (id) {
-            loadMovie(parseInt(id));
-        }
-    }, [id]);
 
-    const loadMovie = async (movieId: number) => {
+
+    const loadMovie = useCallback(async (movieId: number) => {
         try {
             setLoading(true);
             const response = await apiService.getMovieById(movieId);
@@ -46,7 +42,13 @@ export default function MovieDetail() {
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
+
+    useEffect(() => {
+        if (id) {
+            loadMovie(parseInt(id));
+        }
+    }, [id, loadMovie]);
 
     const loadReviews = async (movieId: number) => {
         try {

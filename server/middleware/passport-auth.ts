@@ -11,6 +11,7 @@ import jwt from "jsonwebtoken";
 
 import { prisma } from "../utils/prisma.js";
 import { Request, Response, NextFunction } from "express";
+import { authLogger } from "../utils/logger.js";
 
 // Types for better type safety
 interface AuthError extends Error {
@@ -84,7 +85,10 @@ const verifyLocal: VerifyFunction = async (
     const { password: _, ...userWithoutPassword } = user;
     return done(null, userWithoutPassword);
   } catch (error) {
-    console.error("Local auth error:", error);
+    authLogger.error(
+      "Local authentication failed",
+      error instanceof Error ? error : new Error(String(error))
+    );
     return done(null, false, {
       message: error instanceof Error ? error.message : String(error),
     });
@@ -113,16 +117,19 @@ const verifyJwt: VerifyCallback = async (
   ) => void
 ): Promise<void> => {
   try {
-    console.log("🔐 JWT verification started");
-    console.log("📋 Payload received:", {
-      id: payload.id,
+    // Log JWT verification start
+    authLogger.debug("JWT verification started", {
+      userId: payload.id,
       email: payload.email,
       exp: payload.exp,
     });
 
     // Validate payload structure
     if (!payload.id || !payload.email) {
-      console.log("❌ Invalid payload structure");
+      authLogger.warn("Invalid JWT payload structure", {
+        hasId: !!payload.id,
+        hasEmail: !!payload.email,
+      });
       return done(null, false, {
         message: "Invalid token - missing information",
       });
@@ -130,13 +137,18 @@ const verifyJwt: VerifyCallback = async (
 
     // Validate token expiration
     if (payload.exp && payload.exp * 1000 < Date.now()) {
-      console.log("❌ Token expired:", new Date(payload.exp * 1000));
+      authLogger.warn("JWT token expired", {
+        userId: payload.id,
+        expiryTime: new Date(payload.exp * 1000).toISOString(),
+        currentTime: new Date().toISOString(),
+      });
       return done(null, false, { message: "Token has expired" });
     }
 
-    console.log("✅ Token structure and expiration OK");
-
-    console.log("👤 Searching for user ID:", payload.id);
+    // Log successful token validation
+    authLogger.debug("JWT token structure and expiration validated", {
+      userId: payload.id,
+    });
     const user = await prisma.user.findUnique({
       where: { id: payload.id },
       select: {
@@ -151,33 +163,34 @@ const verifyJwt: VerifyCallback = async (
     });
 
     if (!user) {
-      console.log("❌ User not found in database");
       return done(null, false, { message: "User not found" });
     }
 
-    console.log("✅ User found:", {
-      id: user.id,
-      email: user.email,
-      isActive: user.isActive,
-    });
+    // Log successful authentication
+    authLogger.debug("User authenticated successfully", { userId: user.id });
 
     if (!user.isActive) {
-      console.log("❌ User account deactivated");
+      authLogger.warn("Attempt to authenticate with deactivated account", {
+        userId: user.id,
+      });
       return done(null, false, { message: "Account is deactivated" });
     }
 
     if (user.email !== payload.email) {
-      console.log("❌ Email mismatch:", {
-        db: user.email,
-        token: payload.email,
+      authLogger.warn("JWT email mismatch", {
+        userId: user.id,
+        dbEmail: user.email,
+        tokenEmail: payload.email,
       });
       return done(null, false, { message: "Invalid token - email mismatch" });
     }
 
-    console.log("✅ JWT verification successful");
     return done(null, user);
   } catch (error) {
-    console.error("JWT auth error:", error);
+    authLogger.error(
+      "JWT verification failed",
+      error instanceof Error ? error : new Error("Unknown JWT error")
+    );
     return done(
       error instanceof Error ? error : new Error("JWT verification failed"),
       false,
@@ -218,10 +231,14 @@ export const passportJwtAuth = (
   passport.authenticate(
     "jwt",
     { session: false },
-    (err: any, user: any, info: any) => {
+    (
+      err: AuthError | null,
+      user: PassportUser | false,
+      info: { message: string } | undefined
+    ) => {
       // Handle authentication errors
       if (err) {
-        console.error("Passport JWT authentication error:", err);
+        authLogger.error("Passport JWT authentication error", err);
         return res.status(500).json({
           success: false,
           error: {
@@ -234,17 +251,12 @@ export const passportJwtAuth = (
       // Handle authentication failure
       if (!user) {
         const message = info?.message || "Invalid or expired token";
-        console.log("🚫 JWT authentication failed:", message);
-        console.log(
-          "🚫 Request headers:",
-          req.headers.authorization
-            ? "Bearer token present"
-            : "No Authorization header"
-        );
-        console.log(
-          "🚫 Token preview:",
-          req.headers.authorization?.substring(0, 50) + "..." || "No token"
-        );
+        authLogger.warn("JWT authentication failed", {
+          message,
+          hasAuthorizationHeader: !!req.headers.authorization,
+          tokenPreview:
+            req.headers.authorization?.substring(0, 50) + "..." || "No token",
+        });
 
         return res.status(401).json({
           success: false,
@@ -268,12 +280,12 @@ export const requireRole = (
 ): ((req: Request, res: Response, next: NextFunction) => void) => {
   return (req: Request, res: Response, next: NextFunction): void => {
     // Handle Passport authentication errors
-    if (req.authInfo && req.authInfo.message) {
+    if (req.authInfo && (req.authInfo as { message: string }).message) {
       res.status(401).json({
         success: false,
         error: {
           code: "UNAUTHORIZED",
-          message: req.authInfo.message,
+          message: (req.authInfo as unknown as { message: string }).message,
         },
       });
       return;
@@ -358,7 +370,7 @@ export const initializePassport = () => {
   }
 
   // Ensure passport is properly initialized with all strategies
-  if (!passport._strategies || Object.keys(passport._strategies).length === 0) {
+  if (!passport.strategies || Object.keys(passport.strategies).length === 0) {
     throw new Error("Passport strategies not configured");
   }
 

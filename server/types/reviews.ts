@@ -39,6 +39,23 @@ export interface ReviewUpdateData {
   comment?: string;
 }
 
+// Types pour les critiques de films (anciennement dans movies.ts)
+export interface MovieReviewData {
+  id: number;
+  rating: number;
+  comment: string;
+  createdAt: Date;
+  authorId: number;
+  author: {
+    id: number;
+    name: string;
+    email: string;
+  };
+}
+
+// Note: Les types de critiques de films ont été ajoutés depuis movies.ts
+// pour consolider toutes les responsabilités liées aux critiques.
+
 export interface ReviewFilters {
   movieId?: number;
   authorId?: number;

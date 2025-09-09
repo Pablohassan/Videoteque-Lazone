@@ -24,6 +24,20 @@ export {
   movieIdSchema,
   moviesQuerySchema,
   movieRequestSchema,
+  // Nouveaux schémas pour le scanner
+  FolderPathSchema,
+  FilePathSchema,
+  VideoFileExtensionSchema,
+  MovieFilenameSchema,
+  ScanOptionsSchema,
+  WatcherOptionsSchema,
+  TMDBSearchSchema,
+  IndexingOptionsSchema,
+  ParsedMovieSchema,
+  validateFolderPath,
+  validateFilePath,
+  validateVideoFile,
+  validateMovieTitle,
 } from "./movies.js";
 
 // Schémas de critiques
@@ -36,38 +50,6 @@ export {
   createReviewWithMovieSchema,
 } from "./reviews.js";
 
-// Types - Exports explicites pour éviter les conflits
-export type {
-  // Admin
-  PaginationQuery,
-  UserFilters,
-  CreateUserRequest,
-  UpdateUserRequest,
-  ResetPasswordRequest,
-  DeleteUserRequest,
-} from "./admin.js";
-
-export type {
-  // Auth
-  LoginRequest,
-  RegisterRequest,
-  ChangePasswordRequest,
-  VerifyTokenRequest,
-} from "./auth.js";
-
-export type {
-  // Movies
-  MovieIdParams,
-  MoviesQuery,
-  MovieRequestPayload,
-} from "./movies.js";
-
-export type {
-  // Reviews
-  CreateReviewRequest,
-  UpdateReviewRequest,
-  ReviewIdParams,
-  MovieIdParams as ReviewMovieParams,
-  ReviewsQuery,
-  CreateReviewWithMovieRequest,
-} from "./reviews.js";
+// Note: Les types sont maintenant exportés UNIQUEMENT depuis types/index.ts
+// pour éviter les duplications et respecter l'architecture modulaire.
+// Utilisez toujours: import type { ... } from "../types/index.js";

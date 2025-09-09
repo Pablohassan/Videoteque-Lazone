@@ -5,6 +5,38 @@
 // demandes de films et opérations liées.
 // ========================================================================
 
+// ========================================================================
+// TYPES TMDB (The Movie Database)
+// ========================================================================
+
+export interface TMDBMovie {
+  id: number;
+  title: string;
+  overview: string;
+  poster_path: string;
+  release_date: string;
+  runtime: number;
+  genre_ids: number[];
+  videos?: {
+    results: Array<{
+      key: string;
+      site: string;
+      type: string;
+    }>;
+  };
+  credits?: {
+    cast: Array<{
+      name: string;
+      character: string;
+    }>;
+  };
+}
+
+export interface TMDBGenre {
+  id: number;
+  name: string;
+}
+
 import { Request } from "express";
 import type { User, Movie, Genre, Actor } from "@prisma/client";
 
@@ -83,24 +115,13 @@ export interface MovieResponse {
   lastScanned?: Date;
   genres: MovieGenreData[];
   actors: MovieActorData[];
-  reviews: MovieReviewData[];
+  // Note: Les critiques sont maintenant gérées dans reviews.ts
   createdAt: Date;
   updatedAt: Date;
 }
 
-// Types pour les critiques de films
-export interface MovieReviewData {
-  id: number;
-  rating: number;
-  comment: string;
-  createdAt: Date;
-  authorId: number;
-  author: {
-    id: number;
-    name: string;
-    email: string;
-  };
-}
+// Note: Les types de critiques ont été déplacés vers reviews.ts
+// pour une meilleure séparation des responsabilités.
 
 // Types pour les filtres de films
 export interface MovieFilters {
@@ -116,34 +137,8 @@ export interface MovieFilters {
   limit?: number;
 }
 
-// Types pour les demandes de films
-export interface MovieRequestData {
-  title: string;
-  comment?: string;
-  userId: number;
-}
-
-export interface MovieRequestUpdateData {
-  title?: string;
-  comment?: string;
-  status?: "pending" | "processing" | "available";
-}
-
-// Types pour les réponses de demandes de films
-export interface MovieRequestResponse {
-  id: number;
-  title: string;
-  comment?: string;
-  status: string;
-  requestedAt: Date;
-  updatedAt: Date;
-  userId: number;
-  user: {
-    id: number;
-    name: string;
-    email: string;
-  };
-}
+// Note: Les types de demandes de films ont été déplacés vers movieRequests.ts
+// pour une meilleure séparation des responsabilités.
 
 // Types pour les statistiques de films
 export interface MovieStats {

@@ -1,5 +1,6 @@
 import { Router, Request, Response } from "express";
 import { authService } from "../services/authService.js";
+import { registrationService } from "../services/registrationService.js";
 import { validateBody } from "../middleware/validation.js";
 import { registerSchema } from "../schemas/auth.js";
 import { asyncErrorHandler } from "../middleware/errorHandler.js";
@@ -27,6 +28,90 @@ router.post(
         token: result.token,
         message: "Registration successful",
       },
+    });
+  })
+);
+
+// ===== USER REGISTRATION REQUEST =====
+router.post(
+  "/register-request",
+  asyncErrorHandler(async (req: Request, res: Response): Promise<void> => {
+    const { email, name } = req.body;
+
+    if (!email || !name) {
+      res.status(400).json({
+        success: false,
+        error: {
+          code: "MISSING_FIELDS",
+          message: "Email et nom sont requis",
+        },
+      });
+      return;
+    }
+
+    const result = await registrationService.createRegistrationRequest({
+      email,
+      name,
+    });
+
+    res.status(201).json({
+      success: true,
+      data: result,
+      message: "Demande d'inscription créée avec succès",
+    });
+  })
+);
+
+// ===== PASSWORD RESET REQUEST =====
+router.post(
+  "/forgot-password",
+  asyncErrorHandler(async (req: Request, res: Response): Promise<void> => {
+    const { email } = req.body;
+
+    if (!email) {
+      res.status(400).json({
+        success: false,
+        error: {
+          code: "MISSING_EMAIL",
+          message: "Email requis",
+        },
+      });
+      return;
+    }
+
+    const result = await authService.requestPasswordReset(email);
+
+    res.status(200).json({
+      success: true,
+      data: result,
+      message: "Si cet email existe, un lien de réinitialisation a été envoyé",
+    });
+  })
+);
+
+// ===== PASSWORD RESET =====
+router.post(
+  "/reset-password",
+  asyncErrorHandler(async (req: Request, res: Response): Promise<void> => {
+    const { token, newPassword } = req.body;
+
+    if (!token || !newPassword) {
+      res.status(400).json({
+        success: false,
+        error: {
+          code: "MISSING_FIELDS",
+          message: "Token et nouveau mot de passe requis",
+        },
+      });
+      return;
+    }
+
+    const result = await authService.resetPassword(token, newPassword);
+
+    res.status(200).json({
+      success: true,
+      data: result,
+      message: "Mot de passe réinitialisé avec succès",
     });
   })
 );

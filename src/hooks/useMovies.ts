@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { apiService } from "../services/apiService";
 import type { Movie } from "../types/movie";
 
@@ -17,11 +17,19 @@ export function useMovies(): UseMoviesReturn {
   const [error, setError] = useState<string | null>(null);
 
   // Charger les films depuis la base de données
-  const loadMovies = async () => {
+  const loadMovies = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const response = await apiService.getMovies({ page: 1, limit: 20 });
+
+      // Vérification de sécurité : s'assurer que response.data.movies existe
+      if (!response.data || !response.data.movies) {
+        console.warn("⚠️ Aucune donnée de films reçue:", response.data);
+        setMovies([]);
+        return;
+      }
+
       // Convertir les films de l'API au format Movie
       const convertedMovies: Movie[] = response.data.movies.map((dbMovie) => ({
         id: dbMovie.id,
@@ -33,8 +41,8 @@ export function useMovies(): UseMoviesReturn {
         duration: dbMovie.duration,
         rating: dbMovie.averageRating,
         releaseYear: new Date(dbMovie.releaseDate).getFullYear(),
-        genres: dbMovie.genres.map((g) => g.name),
-        actors: dbMovie.actors.map((a) => a.name),
+        genres: dbMovie.genres?.map((g) => g.name) || [],
+        actors: dbMovie.actors?.map((a) => a.name) || [],
         isWeeklySuggestion: dbMovie.isWeeklySuggestion,
       }));
       setMovies(convertedMovies);
@@ -44,16 +52,24 @@ export function useMovies(): UseMoviesReturn {
           ? err.message
           : "Erreur lors du chargement des films"
       );
-      console.error("Erreur chargement films:", err);
+      console.error("❌ Erreur chargement films:", err);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   // Charger les suggestions hebdomadaires
-  const loadSuggestions = async () => {
+  const loadSuggestions = useCallback(async () => {
     try {
       const response = await apiService.getSuggestions();
+
+      // Vérification de sécurité : s'assurer que response.data.movies existe
+      if (!response.data || !response.data.movies) {
+        console.warn("⚠️ Aucune donnée de suggestions reçue:", response.data);
+        setSuggestions([]);
+        return;
+      }
+
       const convertedSuggestions: Movie[] = response.data.movies.map(
         (dbMovie) => ({
           id: dbMovie.id,
@@ -65,26 +81,27 @@ export function useMovies(): UseMoviesReturn {
           duration: dbMovie.duration,
           rating: dbMovie.averageRating,
           releaseYear: new Date(dbMovie.releaseDate).getFullYear(),
-          genres: dbMovie.genres.map((g) => g.name),
-          actors: dbMovie.actors.map((a) => a.name),
+          genres: dbMovie.genres?.map((g) => g.name) || [],
+          actors: dbMovie.actors?.map((a) => a.name) || [],
           isWeeklySuggestion: dbMovie.isWeeklySuggestion,
         })
       );
       setSuggestions(convertedSuggestions);
     } catch (err) {
-      console.error("Erreur chargement suggestions:", err);
+      console.error("❌ Erreur chargement suggestions:", err);
+      setSuggestions([]); // En cas d'erreur, vider les suggestions
     }
-  };
+  }, []);
 
   // Actualiser les films
-  const refreshMovies = async () => {
+  const refreshMovies = useCallback(async () => {
     await Promise.all([loadMovies(), loadSuggestions()]);
-  };
+  }, [loadMovies, loadSuggestions]);
 
   // Charger les données au montage
   useEffect(() => {
     refreshMovies();
-  }, []);
+  }, [refreshMovies]);
 
   return {
     movies,

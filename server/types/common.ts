@@ -97,34 +97,7 @@ export interface AdminActionData {
 // ========================================================================
 // TYPES TMDB (The Movie Database)
 // ========================================================================
-
-export interface TMDBMovie {
-  id: number;
-  title: string;
-  overview: string;
-  poster_path: string;
-  release_date: string;
-  runtime: number;
-  genre_ids: number[];
-  videos?: {
-    results: Array<{
-      key: string;
-      site: string;
-      type: string;
-    }>;
-  };
-  credits?: {
-    cast: Array<{
-      name: string;
-      character: string;
-    }>;
-  };
-}
-
-export interface TMDBGenre {
-  id: number;
-  name: string;
-}
+// Note: Ces types sont maintenant définis dans movies.ts pour une meilleure séparation des concerns
 
 // ========================================================================
 // TYPES POUR LE SCANNER DE FILMS
@@ -164,4 +137,29 @@ export interface StatusWithMetadata<T = unknown> {
   data?: T;
   message?: string;
   timestamp: Date;
+}
+
+// ========================================================================
+// TYPES GÉNÉRIQUES DE RÉPONSE
+// ========================================================================
+
+// Type générique pour les réponses avec message
+export interface MessageResponse {
+  message: string;
+}
+
+// Type générique pour les réponses de succès avec données
+export interface SuccessResponse<T = unknown> {
+  success: true;
+  data: T;
+  message?: string;
+}
+
+// Type générique pour les réponses d'erreur
+export interface ErrorResponse {
+  success: false;
+  error: {
+    code: string;
+    message: string;
+  };
 }

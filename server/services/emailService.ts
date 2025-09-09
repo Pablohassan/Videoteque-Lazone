@@ -20,7 +20,7 @@ interface UserInvitationData {
 }
 
 export class EmailService {
-  private transporter: nodemailer.Transporter;
+  private transporter!: nodemailer.Transporter;
 
   constructor() {
     this.initializeTransporter();

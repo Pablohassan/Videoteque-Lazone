@@ -27,11 +27,13 @@ dotenv.config({ path: path.resolve(process.cwd(), ".env") });
 movieIndexingService.reinitializeTMDBClient();
 
 // Mettre à jour la configuration du MovieWatcherService avec les nouvelles variables d'environnement
-if (process.env.MOVIES_FOLDER_PATH) {
-  movieWatcherService.updateConfiguration({
-    watchPath: process.env.MOVIES_FOLDER_PATH,
-  });
-}
+// Forcer la revalidation du chemin dans le service d'indexation
+movieIndexingService.getMoviesFolderPath(); // Cela déclenche ensureValidPath()
+
+// Mettre à jour avec le chemin relatif validé
+movieWatcherService.updateConfiguration({
+  watchPath: movieIndexingService.getMoviesFolderPath(),
+});
 
 // Environment configuration with strict typing
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -61,7 +63,6 @@ const startAutoWatch = async (): Promise<void> => {
 
     // Démarrer la surveillance
     await movieWatcherService.start();
-    console.log("✅ Surveillance automatique démarrée");
   } catch (error) {
     console.error("❌ Erreur lors du démarrage de la surveillance:", error);
   }
@@ -106,7 +107,6 @@ const createServer = async (): Promise<void> => {
         if (!origin) return callback(null, true);
 
         if (allowedOrigins.includes(origin)) {
-          console.log(`✅ CORS allowed: ${origin}`);
           return callback(null, origin); // Return the origin to set the header
         } else {
           console.log(`🚫 CORS blocked: ${origin} not in allowed origins`);
