@@ -133,15 +133,6 @@ router.get(
   }
 );
 
-// Route de test pour déboguer
-router.get("/test/:id", (req, res) => {
-  console.log(`🧪 [TEST] Route appelée - ID: ${req.params.id}`);
-  res.json({
-    success: true,
-    message: `Test route called with ID: ${req.params.id}`,
-  });
-});
-
 // GET /api/movies/:id/stream - Streaming vidéo par ID de film (plus sécurisé)
 router.get(
   "/:id/stream",
@@ -392,6 +383,11 @@ router.get(
         movie.localPath || ""
       );
 
+      // Détecter les pistes audio avec movieService
+      const audioTracks = await movieService.detectAudioTracks(
+        movie.localPath || ""
+      );
+
       res.json({
         success: true,
         data: {
@@ -404,6 +400,7 @@ router.get(
           container: movie.container,
           lastScanned: movie.lastScanned,
           subtitleFiles,
+          audioTracks,
         },
       });
     } catch (error: unknown) {

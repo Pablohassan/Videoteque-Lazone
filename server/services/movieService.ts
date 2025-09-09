@@ -334,6 +334,134 @@ export class MovieService {
     }
   }
 
+  async detectAudioTracks(
+    moviePath: string
+  ): Promise<
+    Array<{ index: number; language: string; codec: string; channels: number }>
+  > {
+    try {
+      if (!moviePath) return [];
+
+      // Vérifier que le fichier existe avant de procéder
+      let resolvedPath = moviePath;
+      try {
+        await fs.access(moviePath);
+      } catch (accessError) {
+        console.warn(
+          `⚠️ Fichier inaccessible pour analyse audio: ${moviePath}`,
+          accessError
+        );
+        // Essayer de résoudre le chemin relatif si c'est un chemin relatif
+        if (!path.isAbsolute(moviePath)) {
+          resolvedPath = path.resolve(process.cwd(), moviePath);
+          console.log(
+            `🔄 Tentative de résolution pour analyse audio: ${moviePath} → ${resolvedPath}`
+          );
+          try {
+            await fs.access(resolvedPath);
+          } catch (resolveError) {
+            console.warn(
+              `❌ Chemin résolu également inaccessible pour analyse audio: ${resolvedPath}`,
+              resolveError
+            );
+            return [];
+          }
+        } else {
+          return [];
+        }
+      }
+
+      // Analyser le nom du fichier pour détecter les langues audio
+      const filename = path.basename(resolvedPath).toLowerCase();
+      const audioTracks: Array<{
+        index: number;
+        language: string;
+        codec: string;
+        channels: number;
+      }> = [];
+
+      console.log(`🎵 Analyse des pistes audio pour: ${filename}`);
+
+      // Détection basée sur les patterns courants dans les noms de fichiers
+      const patterns = [
+        // Ita Eng - pistes Italienne et Anglaise
+        {
+          pattern: /\b(ita|italian|italiano)\b.*?\b(eng|english|inglese)\b/i,
+          languages: ["it", "en"],
+          codec: "AC3",
+        },
+        {
+          pattern: /\b(eng|english|inglese)\b.*?\b(ita|italian|italiano)\b/i,
+          languages: ["en", "it"],
+          codec: "AC3",
+        },
+        // Fra Eng - pistes Française et Anglaise
+        {
+          pattern: /\b(fra|french|français)\b.*?\b(eng|english)\b/i,
+          languages: ["fr", "en"],
+          codec: "AC3",
+        },
+        {
+          pattern: /\b(eng|english)\b.*?\b(fra|french|français)\b/i,
+          languages: ["en", "fr"],
+          codec: "AC3",
+        },
+        // Multiples langues
+        {
+          pattern: /\b(multi|multi-lang|ita.*eng.*fra)\b/i,
+          languages: ["it", "en", "fr"],
+          codec: "AC3",
+        },
+        // Simple détection
+        {
+          pattern: /\b(ita|italian|italiano)\b/i,
+          languages: ["it"],
+          codec: "AC3",
+        },
+        {
+          pattern: /\b(eng|english|inglese)\b/i,
+          languages: ["en"],
+          codec: "AC3",
+        },
+        {
+          pattern: /\b(fra|french|français)\b/i,
+          languages: ["fr"],
+          codec: "AC3",
+        },
+      ];
+
+      for (const { pattern, languages, codec } of patterns) {
+        if (pattern.test(filename)) {
+          languages.forEach((lang, index) => {
+            audioTracks.push({
+              index,
+              language: lang,
+              codec,
+              channels: 2, // Par défaut stéréo
+            });
+          });
+          break; // Prendre le premier pattern qui match
+        }
+      }
+
+      // Si aucun pattern ne match, créer une piste par défaut
+      if (audioTracks.length === 0) {
+        audioTracks.push({
+          index: 0,
+          language: "en", // Anglais par défaut
+          codec: "Unknown",
+          channels: 2,
+        });
+      }
+
+      console.log(`🎵 Pistes audio détectées:`, audioTracks);
+      return audioTracks;
+    } catch (error) {
+      console.error("❌ Erreur lors de l'analyse des pistes audio:", error);
+      return [];
+    }
+  }
+
   async detectSubtitleFiles(
     moviePath: string
   ): Promise<

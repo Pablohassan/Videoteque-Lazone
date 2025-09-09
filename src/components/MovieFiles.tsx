@@ -25,11 +25,19 @@ interface SubtitleFile {
     size: number;
 }
 
+interface AudioTrack {
+    index: number;
+    language: string;
+    codec: string;
+    channels: number;
+}
+
 interface MovieFolder {
     movieId: number;
     folderPath: string;
     videoFiles: MovieFile[];
     subtitleFiles: SubtitleFile[];
+    audioTracks: AudioTrack[];
     otherFiles: unknown[];
 }
 
@@ -63,8 +71,9 @@ export function MovieFiles({ movieId }: MovieFilesProps) {
                 return;
             }
 
-            // Utiliser les sous-titres retournés par l'API
+            // Utiliser les sous-titres et pistes audio retournés par l'API
             const subtitleFiles = fileInfo.data.subtitleFiles || [];
+            const audioTracks = fileInfo.data.audioTracks || [];
 
             const mockFolder: MovieFolder = {
                 movieId,
@@ -83,6 +92,12 @@ export function MovieFiles({ movieId }: MovieFilesProps) {
                     filename: sub.filename,
                     language: sub.language,
                     size: sub.size
+                })),
+                audioTracks: audioTracks.map(track => ({
+                    index: track.index,
+                    language: track.language,
+                    codec: track.codec,
+                    channels: track.channels
                 })),
                 otherFiles: []
             };
@@ -307,6 +322,7 @@ export function MovieFiles({ movieId }: MovieFilesProps) {
                     videoUrl={currentVideo.url}
                     title={currentVideo.title}
                     subtitleFiles={movieFolder.subtitleFiles || []}
+                    audioTracks={movieFolder.audioTracks || []}
                     fileSize={movieFolder.videoFiles[0]?.size}
                     filePath={movieFolder.videoFiles[0]?.path}
                     filename={movieFolder.videoFiles[0]?.displayName}

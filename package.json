@@ -88,6 +88,7 @@
     "loglevel": "^1.9.2",
     "lucide-react": "^0.462.0",
     "media-chrome": "^4.13.0",
+    "mediabunny": "^1.14.3",
     "mime-types": "^3.0.1",
     "multer": "^2.0.0-rc.4",
     "node-fetch": "^3.3.2",

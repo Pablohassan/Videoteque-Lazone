@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
 import { Button } from "./ui/button";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Badge } from "./ui/badge";
-import { Download, ExternalLink, AlertTriangle, Info, PlayCircle, Subtitles } from "lucide-react";
+import { Download, ExternalLink, AlertTriangle, Info, PlayCircle, Subtitles, Volume2 } from "lucide-react";
 import {
     VideoPlayer,
     VideoPlayerContent,
@@ -24,6 +24,7 @@ interface VideoPlayerModalProps {
     videoUrl: string;
     title: string;
     subtitleFiles?: Array<{ path: string; filename: string; language: string; size: number }>;
+    audioTracks?: Array<{ index: number; language: string; codec: string; channels: number }>;
     fileSize?: number;
     filePath?: string;
     filename?: string;
@@ -40,12 +41,21 @@ interface SubtitleTrack {
     mode: 'disabled' | 'hidden' | 'showing';
 }
 
+interface AudioTrack {
+    id: string;
+    index: number;
+    language: string;
+    label: string;
+    enabled: boolean;
+}
+
 export function VideoPlayerModal({
     isOpen,
     onClose,
     videoUrl,
     title,
     subtitleFiles,
+    audioTracks: apiAudioTracks,
     fileSize,
     filePath,
     filename,
@@ -58,6 +68,8 @@ export function VideoPlayerModal({
     const [showAC3Warning, setShowAC3Warning] = useState(false);
     const [embeddedSubtitles, setEmbeddedSubtitles] = useState<SubtitleTrack[]>([]);
     const [currentSubtitleTrack, setCurrentSubtitleTrack] = useState<number | null>(null);
+    const [audioTracks, setAudioTracks] = useState<AudioTrack[]>([]);
+    const [currentAudioTrack, setCurrentAudioTrack] = useState<number | null>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
 
     // Détection automatique des fichiers volumineux (> 2GB) et AC3
@@ -88,39 +100,81 @@ export function VideoPlayerModal({
         }
     }, [isOpen]);
 
-    // Détection des pistes de sous-titres intégrées
-    const handleVideoLoad = () => {
+    // Fonction utilitaire pour convertir les codes de langue en noms lisibles
+    const getLanguageName = useCallback((langCode: string): string => {
+        const languages: { [key: string]: string } = {
+            'en': 'Anglais',
+            'fr': 'Français',
+            'it': 'Italien',
+            'es': 'Espagnol',
+            'de': 'Allemand',
+            'pt': 'Portugais',
+            'ru': 'Russe',
+            'ja': 'Japonais',
+            'ko': 'Coréen',
+            'zh': 'Chinois',
+        };
+        return languages[langCode] || langCode.toUpperCase();
+    }, []);
+
+    // Initialisation des pistes audio et sous-titres
+    const initializeTracks = useCallback(() => {
         if (videoRef.current) {
             const video = videoRef.current;
-            const tracks: SubtitleTrack[] = [];
+            const subtitleTracks: SubtitleTrack[] = [];
 
-            // Parcourir toutes les pistes de texte
+            // Détection des pistes de sous-titres (toujours depuis le navigateur)
             for (let i = 0; i < video.textTracks.length; i++) {
                 const track = video.textTracks[i];
-                if (track.kind === 'subtitles' || track.kind === 'captions') {
-                    tracks.push({
-                        id: `track-${i}`,
+                if (track.kind === 'subtitles' || track.kind === 'captions' || track.kind === 'descriptions') {
+                    subtitleTracks.push({
+                        id: `subtitle-track-${i}`,
                         index: i,
                         language: track.language || 'unknown',
                         label: track.label || `Sous-titres ${i + 1}`,
-                        kind: track.kind as 'subtitles' | 'captions',
+                        kind: track.kind as 'subtitles' | 'captions' | 'descriptions',
                         mode: track.mode,
                     });
                 }
             }
 
-            setEmbeddedSubtitles(tracks);
+            setEmbeddedSubtitles(subtitleTracks);
 
             // Activer automatiquement la première piste de sous-titres si disponible
-            if (tracks.length > 0 && video.textTracks.length > 0) {
-                const firstTrack = video.textTracks[tracks[0].index];
+            if (subtitleTracks.length > 0 && video.textTracks.length > 0) {
+                const firstTrack = video.textTracks[subtitleTracks[0].index];
                 if (firstTrack) {
                     firstTrack.mode = 'showing';
-                    setCurrentSubtitleTrack(tracks[0].index);
+                    setCurrentSubtitleTrack(subtitleTracks[0].index);
                 }
             }
         }
+
+        // Utiliser les pistes audio de l'API si disponibles
+        if (apiAudioTracks && apiAudioTracks.length > 0) {
+            const audioTracksFromAPI: AudioTrack[] = apiAudioTracks.map(track => ({
+                id: `api-audio-track-${track.index}`,
+                index: track.index,
+                language: track.language,
+                label: `${getLanguageName(track.language)} (${track.codec})`,
+                enabled: track.index === 0, // La première piste est active par défaut
+            }));
+            setAudioTracks(audioTracksFromAPI);
+            setCurrentAudioTrack(0); // Première piste active par défaut
+        }
+    }, [apiAudioTracks, getLanguageName]);
+
+    // Détection des pistes au chargement de la vidéo
+    const handleVideoLoad = () => {
+        initializeTracks();
     };
+
+    // Initialiser les pistes quand les données de l'API changent
+    useEffect(() => {
+        if (isOpen && apiAudioTracks) {
+            initializeTracks();
+        }
+    }, [isOpen, apiAudioTracks, initializeTracks]);
 
     // Gestion du changement de piste de sous-titres
     const handleSubtitleChange = (trackIndex: number | null) => {
@@ -139,6 +193,29 @@ export function VideoPlayerModal({
             } else {
                 setCurrentSubtitleTrack(null);
             }
+        }
+    };
+
+    // Gestion du changement de piste audio
+    const handleAudioTrackChange = (trackIndex: number) => {
+        if (videoRef.current) {
+            const video = videoRef.current as HTMLVideoElement & {
+                audioTracks?: { enabled: boolean }[]
+            };
+
+            // Vérifier si audioTracks est disponible (certains navigateurs seulement)
+            if (video.audioTracks && video.audioTracks.length > trackIndex) {
+                // Désactiver toutes les pistes audio
+                for (let i = 0; i < video.audioTracks.length; i++) {
+                    video.audioTracks[i].enabled = false;
+                }
+
+                // Activer la piste sélectionnée
+                video.audioTracks[trackIndex].enabled = true;
+            }
+
+            // Mettre à jour l'état même si le changement réel n'est pas possible
+            setCurrentAudioTrack(trackIndex);
         }
     };
 
@@ -242,6 +319,12 @@ export function VideoPlayerModal({
                             <Badge variant="default" className="text-xs">
                                 <Subtitles className="h-3 w-3 mr-1" />
                                 {embeddedSubtitles.length} Sous-titres
+                            </Badge>
+                        )}
+                        {audioTracks.length > 1 && (
+                            <Badge variant="outline" className="text-xs">
+                                <Volume2 className="h-3 w-3 mr-1" />
+                                {audioTracks.length} Audio
                             </Badge>
                         )}
                     </DialogTitle>
@@ -387,8 +470,8 @@ export function VideoPlayerModal({
 
                     {/* Contrôles du player */}
                     <div className="absolute top-4 right-4 flex gap-2">
-                        {/* Menu de sélection des sous-titres */}
-                        {(embeddedSubtitles.length > 0 || (subtitleFiles && subtitleFiles.length > 0)) && (
+                        {/* Menu de sélection des pistes audio et sous-titres */}
+                        {(audioTracks.length > 1 || embeddedSubtitles.length > 0 || (subtitleFiles && subtitleFiles.length > 0)) && (
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                     <Button
@@ -402,6 +485,33 @@ export function VideoPlayerModal({
                                     </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent className="bg-black bg-opacity-90 text-white border-white border">
+                                    {/* Section Pistes Audio */}
+                                    {audioTracks.length > 1 && (
+                                        <>
+                                            <DropdownMenuLabel className="text-white flex items-center gap-2">
+                                                <Volume2 className="h-4 w-4" />
+                                                Pistes Audio
+                                            </DropdownMenuLabel>
+                                            {audioTracks.map((track) => (
+                                                <DropdownMenuItem
+                                                    key={track.id}
+                                                    onClick={() => handleAudioTrackChange(track.index)}
+                                                    className={`cursor-pointer flex items-center gap-2 ${currentAudioTrack === track.index ? 'bg-white bg-opacity-20' : ''
+                                                        }`}
+                                                >
+                                                    <Volume2 className="h-4 w-4" />
+                                                    <span>{track.label}</span>
+                                                    {currentAudioTrack === track.index && (
+                                                        <Badge variant="default" className="text-xs ml-auto">
+                                                            Actif
+                                                        </Badge>
+                                                    )}
+                                                </DropdownMenuItem>
+                                            ))}
+                                            <DropdownMenuSeparator />
+                                        </>
+                                    )}
+
                                     <DropdownMenuLabel className="text-white">Sous-titres intégrés</DropdownMenuLabel>
                                     {embeddedSubtitles.length > 0 && (
                                         <>
