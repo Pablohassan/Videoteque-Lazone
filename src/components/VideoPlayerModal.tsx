@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
 import { Button } from "./ui/button";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Badge } from "./ui/badge";
-import { Download, ExternalLink, AlertTriangle, Info, PlayCircle, Settings, Subtitles } from "lucide-react";
+import { Download, ExternalLink, AlertTriangle, Info, PlayCircle, Subtitles } from "lucide-react";
 import {
     VideoPlayer,
     VideoPlayerContent,
@@ -16,6 +16,7 @@ import {
     DropdownMenuSeparator,
     DropdownMenuLabel,
 } from "./ui/dropdown-menu";
+import { ChevronDown, Settings } from "lucide-react";
 
 interface VideoPlayerModalProps {
     isOpen: boolean;
@@ -137,6 +138,52 @@ export function VideoPlayerModal({
                 setCurrentSubtitleTrack(trackIndex);
             } else {
                 setCurrentSubtitleTrack(null);
+            }
+        }
+    };
+
+    // Gestion du chargement des sous-titres externes
+    const handleExternalSubtitleChange = (subtitle: { path: string; filename: string; language: string; size: number }) => {
+        if (videoRef.current) {
+            const video = videoRef.current;
+
+            // Créer une nouvelle piste de sous-titres si elle n'existe pas déjà
+            let track = Array.from(video.textTracks).find(t => t.label === subtitle.filename);
+
+            if (!track) {
+                // Créer un élément track temporaire pour charger les sous-titres externes
+                const trackElement = document.createElement('track');
+                trackElement.kind = 'subtitles';
+                trackElement.label = subtitle.filename;
+                trackElement.srclang = subtitle.language.toLowerCase().substring(0, 2);
+                trackElement.src = `/api/subtitles/${encodeURIComponent(subtitle.filename)}?path=${encodeURIComponent(subtitle.path)}`;
+                trackElement.default = false;
+
+                // Ajouter la piste au video
+                video.appendChild(trackElement);
+                track = trackElement.track;
+
+                // Attendre que la piste soit chargée
+                trackElement.addEventListener('load', () => {
+                    console.log(`Sous-titres externes chargés: ${subtitle.filename}`);
+                });
+
+                trackElement.addEventListener('error', (error) => {
+                    console.error(`Erreur lors du chargement des sous-titres: ${subtitle.filename}`, error);
+                });
+            }
+
+            // Désactiver toutes les autres pistes
+            for (let i = 0; i < video.textTracks.length; i++) {
+                if (video.textTracks[i] !== track) {
+                    video.textTracks[i].mode = 'disabled';
+                }
+            }
+
+            // Activer la piste sélectionnée
+            if (track) {
+                track.mode = 'showing';
+                setCurrentSubtitleTrack(-1); // -1 pour indiquer une piste externe
             }
         }
     };
@@ -338,9 +385,72 @@ export function VideoPlayerModal({
                         </div>
                     )}
 
-                    {/* Bouton de téléchargement permanent pour les gros fichiers et AC3 */}
-                    {(isLargeFile || isAC3File) && (!showWarning && !showAC3Warning) && (
-                        <div className="absolute top-4 right-4">
+                    {/* Contrôles du player */}
+                    <div className="absolute top-4 right-4 flex gap-2">
+                        {/* Menu de sélection des sous-titres */}
+                        {(embeddedSubtitles.length > 0 || (subtitleFiles && subtitleFiles.length > 0)) && (
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button
+                                        size="sm"
+                                        variant="secondary"
+                                        className="bg-black bg-opacity-50 hover:bg-opacity-70 text-white border-white border"
+                                    >
+                                        <Subtitles className="h-4 w-4 mr-2" />
+                                        Sous-titres
+                                        <ChevronDown className="h-4 w-4 ml-2" />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent className="bg-black bg-opacity-90 text-white border-white border">
+                                    <DropdownMenuLabel className="text-white">Sous-titres intégrés</DropdownMenuLabel>
+                                    {embeddedSubtitles.length > 0 && (
+                                        <>
+                                            <DropdownMenuItem
+                                                onClick={() => handleSubtitleChange(null)}
+                                                className={`cursor-pointer ${currentSubtitleTrack === null ? 'bg-white bg-opacity-20' : ''
+                                                    }`}
+                                            >
+                                                Désactiver
+                                            </DropdownMenuItem>
+                                            {embeddedSubtitles.map((track) => (
+                                                <DropdownMenuItem
+                                                    key={track.id}
+                                                    onClick={() => handleSubtitleChange(track.index)}
+                                                    className={`cursor-pointer ${currentSubtitleTrack === track.index ? 'bg-white bg-opacity-20' : ''
+                                                        }`}
+                                                >
+                                                    {track.label} ({track.language})
+                                                </DropdownMenuItem>
+                                            ))}
+                                        </>
+                                    )}
+
+                                    {subtitleFiles && subtitleFiles.length > 0 && (
+                                        <>
+                                            <DropdownMenuSeparator />
+                                            <DropdownMenuLabel className="text-white">Sous-titres externes</DropdownMenuLabel>
+                                            {subtitleFiles.map((subtitle, index) => (
+                                                <DropdownMenuItem
+                                                    key={`external-${index}`}
+                                                    onClick={() => handleExternalSubtitleChange(subtitle)}
+                                                    className="cursor-pointer"
+                                                >
+                                                    <div className="flex items-center gap-2">
+                                                        <span>{subtitle.language}</span>
+                                                        <Badge variant="outline" className="text-xs">
+                                                            Externe
+                                                        </Badge>
+                                                    </div>
+                                                </DropdownMenuItem>
+                                            ))}
+                                        </>
+                                    )}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        )}
+
+                        {/* Bouton de téléchargement permanent pour les gros fichiers et AC3 */}
+                        {(isLargeFile || isAC3File) && (!showWarning && !showAC3Warning) && (
                             <Button
                                 onClick={handleDownloadForVLC}
                                 size="sm"
@@ -350,8 +460,8 @@ export function VideoPlayerModal({
                                 <ExternalLink className="h-4 w-4 mr-2" />
                                 VLC
                             </Button>
-                        </div>
-                    )}
+                        )}
+                    </div>
                 </div>
             </DialogContent>
         </Dialog>

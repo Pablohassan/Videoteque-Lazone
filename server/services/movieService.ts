@@ -342,7 +342,46 @@ export class MovieService {
     try {
       if (!moviePath) return [];
 
-      const movieDir = path.dirname(moviePath);
+      // Vérifier que le fichier existe avant de procéder
+      let resolvedPath = moviePath;
+      try {
+        await fs.access(moviePath);
+      } catch (accessError) {
+        console.warn(`⚠️ Fichier inaccessible: ${moviePath}`, accessError);
+        // Essayer de résoudre le chemin relatif si c'est un chemin relatif
+        if (!path.isAbsolute(moviePath)) {
+          resolvedPath = path.resolve(process.cwd(), moviePath);
+          console.log(
+            `🔄 Tentative de résolution: ${moviePath} → ${resolvedPath}`
+          );
+          try {
+            await fs.access(resolvedPath);
+          } catch (resolveError) {
+            console.warn(
+              `❌ Chemin résolu également inaccessible: ${resolvedPath}`,
+              resolveError
+            );
+            return [];
+          }
+        } else {
+          return [];
+        }
+      }
+
+      const movieDir = path.dirname(resolvedPath);
+      console.log(`📁 Recherche de sous-titres dans: ${movieDir}`);
+
+      // Vérifier que le dossier existe
+      try {
+        await fs.access(movieDir);
+      } catch (dirError) {
+        console.warn(
+          `⚠️ Dossier de sous-titres inaccessible: ${movieDir}`,
+          dirError
+        );
+        return [];
+      }
+
       const items = await fs.readdir(movieDir);
 
       const subtitleFiles: Array<{

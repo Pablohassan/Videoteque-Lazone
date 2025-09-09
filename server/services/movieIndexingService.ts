@@ -303,9 +303,8 @@ export class MovieIndexingService {
       // Récupérer les acteurs
       const actors = this.tmdbClient.extractActors(fullTmdbMovie.credits);
 
-      // Convertir le chemin absolu en chemin relatif pour la cohérence
-      const relativePath = path.relative(process.cwd(), parsedMovie.filepath);
-      const dbFormatPath = `../../${relativePath}`;
+      // Stocker le chemin absolu pour éviter les problèmes de résolution
+      const dbFormatPath = parsedMovie.filepath;
 
       // Créer ou mettre à jour le film
       const movieData = {
@@ -498,7 +497,11 @@ export class MovieIndexingService {
         };
       }
 
-      console.log(`✅ TMDB trouvé: ${tmdbMatch.title} (${tmdbMatch.release_date?.split('-')[0]})`);
+      console.log(
+        `✅ TMDB trouvé: ${tmdbMatch.title} (${
+          tmdbMatch.release_date?.split("-")[0]
+        })`
+      );
 
       // Sauvegarder en base
       console.log(`💾 Appel de saveToDatabase pour: ${parsedMovie.title}`);

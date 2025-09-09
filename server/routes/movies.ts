@@ -6,6 +6,8 @@ import { movieIdSchema, moviesQuerySchema } from "../schemas/movies.js";
 import { prisma } from "../utils/prisma.js";
 import type { MoviesQuery, MovieIdParams } from "../schemas/movies.js";
 
+console.log("🎬 [MOVIES ROUTES] Chargement du fichier routes/movies.ts");
+
 const router = Router();
 
 // GET /api/movies
@@ -126,6 +128,228 @@ router.get(
       res.status(500).json({
         success: false,
         message: "Erreur lors de la récupération du film",
+      });
+    }
+  }
+);
+
+// Route de test pour déboguer
+router.get("/test/:id", (req, res) => {
+  console.log(`🧪 [TEST] Route appelée - ID: ${req.params.id}`);
+  res.json({
+    success: true,
+    message: `Test route called with ID: ${req.params.id}`,
+  });
+});
+
+// GET /api/movies/:id/stream - Streaming vidéo par ID de film (plus sécurisé)
+router.get(
+  "/:id/stream",
+  (req, res, next) => {
+    console.log(`🎬 [STREAM] Route appelée - URL complète: ${req.originalUrl}`);
+    console.log(`🎬 [STREAM] Méthode: ${req.method}`);
+    console.log(`🎬 [STREAM] Params:`, req.params);
+    next();
+  },
+  optionalAuth,
+  async (req, res) => {
+    try {
+      console.log(`🎬 [STREAM] Après middleware - movieId: ${req.params.id}`);
+      console.log(`🎬 [STREAM] Headers:`, req.headers);
+
+      const movieId = parseInt(req.params.id);
+      if (isNaN(movieId)) {
+        console.error(`❌ [STREAM] ID invalide: ${req.params.id}`);
+        return res.status(400).json({
+          success: false,
+          message: "ID de film invalide",
+        });
+      }
+
+      // Récupérer le film depuis la base
+      console.log(`🎬 [STREAM] Recherche du film ID: ${movieId}`);
+      const movie = await prisma.movie.findUnique({
+        where: { id: movieId },
+        select: {
+          id: true,
+          localPath: true,
+          filename: true,
+          fileSize: true,
+          container: true,
+        },
+      });
+
+      console.log(`🎬 [STREAM] Film trouvé:`, movie);
+
+      if (!movie) {
+        console.error(`❌ [STREAM] Film non trouvé pour ID: ${movieId}`);
+        return res.status(404).json({
+          success: false,
+          message: "Film non trouvé",
+        });
+      }
+
+      if (!movie.localPath) {
+        return res.status(404).json({
+          success: false,
+          message: "Chemin du fichier non disponible",
+        });
+      }
+
+      const filePath = movie.localPath;
+      const range = req.headers.range;
+      console.log(`🎬 Streaming par ID: ${movieId} -> ${filePath}`);
+      console.log(`🎬 Range header:`, range);
+
+      // Copier la logique de streaming depuis files.ts
+      console.log(`🎬 [STREAM] Début du traitement du fichier`);
+      const fs = (await import("fs-extra")).default;
+      const path = (await import("path")).default;
+      const { createReadStream } = await import("fs");
+      const mime = (await import("mime-types")).default;
+
+      // Résoudre et vérifier le chemin du fichier
+      let resolvedPath = filePath;
+      let stats;
+
+      try {
+        // Essayer d'abord le chemin tel quel
+        stats = await fs.stat(filePath);
+      } catch (error) {
+        console.warn(`⚠️ Chemin direct inaccessible: ${filePath}`, error);
+
+        // Essayer de résoudre le chemin relatif si c'est un chemin relatif
+        if (!path.isAbsolute(filePath)) {
+          resolvedPath = path.resolve(process.cwd(), filePath);
+          console.log(
+            `🔄 Tentative de résolution: ${filePath} → ${resolvedPath}`
+          );
+
+          try {
+            stats = await fs.stat(resolvedPath);
+          } catch (resolveError) {
+            console.error(
+              `❌ Chemin résolu également inaccessible: ${resolvedPath}`,
+              resolveError
+            );
+            return res.status(404).json({
+              success: false,
+              message: "Fichier non trouvé - chemin inaccessible",
+            });
+          }
+        } else {
+          console.error(`❌ Chemin absolu inaccessible: ${filePath}`, error);
+          return res.status(404).json({
+            success: false,
+            message: "Fichier non trouvé",
+          });
+        }
+      }
+
+      // Vérifier que c'est bien un fichier
+      if (!stats.isFile()) {
+        return res.status(400).json({
+          success: false,
+          message: "Le chemin spécifié n'est pas un fichier",
+        });
+      }
+
+      const fileSize = stats.size;
+      const detectedMime = mime.lookup(resolvedPath);
+      const mimeType =
+        typeof detectedMime === "string" ? detectedMime : "video/mp4";
+
+      const realFilename = path.basename(resolvedPath);
+
+      if (range) {
+        console.log(`🎬 [STREAM] Traitement du range: ${range}`);
+        // Support des range headers pour la lecture partielle
+        const parts = range.replace(/bytes=/, "").split("-");
+        const start = parseInt(parts[0], 10);
+        const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+        const chunksize = end - start + 1;
+
+        console.log(
+          `🎬 [STREAM] Range calculé: start=${start}, end=${end}, chunksize=${chunksize}`
+        );
+
+        // Validation des paramètres de range
+        if (start >= fileSize || end >= fileSize || start > end) {
+          console.error(
+            `❌ [STREAM] Range invalide: start=${start}, end=${end}, fileSize=${fileSize}`
+          );
+          return res.status(416).json({
+            success: false,
+            message: "Range non satisfiable",
+          });
+        }
+
+        console.log(`🎬 [STREAM] Envoi des headers 206`);
+        res.writeHead(206, {
+          "Content-Range": `bytes ${start}-${end}/${fileSize}`,
+          "Accept-Ranges": "bytes",
+          "Content-Length": chunksize,
+          "Content-Type": mimeType,
+          "Cache-Control": "no-cache",
+          Connection: "keep-alive",
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, HEAD",
+          "Access-Control-Allow-Headers": "Range",
+        });
+
+        const fileStream = createReadStream(resolvedPath, { start, end });
+
+        fileStream.on("error", (error) => {
+          console.error("Erreur du stream:", error);
+          if (!res.headersSent) {
+            res.status(500).json({
+              success: false,
+              message: "Erreur lors de la lecture du fichier",
+            });
+          }
+        });
+
+        fileStream.on("end", () => {
+          res.end();
+        });
+
+        fileStream.pipe(res);
+      } else {
+        // Lecture complète du fichier
+        res.writeHead(200, {
+          "Content-Length": fileSize,
+          "Content-Type": mimeType,
+          "Accept-Ranges": "bytes",
+          "Cache-Control": "no-cache",
+          Connection: "keep-alive",
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, HEAD",
+          "Access-Control-Allow-Headers": "Range",
+        });
+
+        const fileStream = createReadStream(resolvedPath);
+
+        fileStream.on("error", (error) => {
+          console.error("Erreur du stream:", error);
+          if (!res.headersSent) {
+            res.status(500).json({
+              success: false,
+              message: "Erreur lors de la lecture du fichier",
+            });
+          }
+        });
+
+        fileStream.on("end", () => {
+          res.end();
+        });
+
+        fileStream.pipe(res);
+      }
+    } catch (error: unknown) {
+      console.error("❌ Erreur dans /:id/stream:", error);
+      res.status(500).json({
+        success: false,
+        message: "Erreur lors du streaming",
       });
     }
   }

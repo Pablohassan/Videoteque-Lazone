@@ -53,6 +53,17 @@ export class MovieWatcherService {
     debounceMs: 2000, // 2 secondes
     recursive: true,
     ignoreInitial: true,
+    ignored: [
+      /(^|[/\\])\../, // Fichiers/dossiers cachés (.DS_Store, .tmp, etc.)
+      /.*\.tmp$/, // Fichiers temporaires
+      /.*\.temp$/,
+      /.*\.swp$/, // Fichiers vim
+      /.*~$/, // Fichiers backup
+      /Thumbs\.db$/, // Windows thumbnails
+      /Desktop\.ini$/, // Windows metadata
+      /node_modules/, // Dossiers de dépendances
+      /\.git/, // Dossiers git
+    ],
     awaitWriteFinish: {
       stabilityThreshold: 1000,
       pollInterval: 100,
@@ -120,7 +131,7 @@ export class MovieWatcherService {
 
         // Patterns à ignorer pour de meilleures performances
         ignored: [
-          /(^|[\/\\])\../, // Fichiers/dossiers cachés (.DS_Store, .tmp, etc.)
+          /(^|[/\\])\../, // Fichiers/dossiers cachés (.DS_Store, .tmp, etc.)
           /.*\.tmp$/, // Fichiers temporaires
           /.*\.temp$/,
           /.*\.swp$/, // Fichiers vim
@@ -346,7 +357,9 @@ export class MovieWatcherService {
         memoryUsage: process.memoryUsage(),
         watcherInfo: {
           watchedPathsCount: Object.keys(watched).length,
-          ignoredPatterns: this.options.ignored || [],
+          ignoredPatterns: (this.options.ignored || []).map((pattern) =>
+            pattern instanceof RegExp ? pattern.toString() : pattern
+          ),
         },
       },
       chokidarConfig: {
@@ -366,6 +379,19 @@ export class MovieWatcherService {
     this.errorsCount = 0;
     this.totalProcessingTime = 0;
     console.log("📊 Métriques de performance réinitialisées");
+  }
+
+  /**
+   * Obtenir le chemin relatif du dossier de films pour la base de données
+   * @returns Le chemin relatif formaté pour la DB (ex: "../../Downloads/films/")
+   */
+  private getMoviesFolderRelativeForDB(): string {
+    const absolutePath = movieIndexingService.getMoviesFolderAbsolutePath();
+    const relativePath = path.relative(process.cwd(), absolutePath);
+    // S'assurer qu'il se termine par un slash
+    return relativePath.endsWith(path.sep)
+      ? relativePath
+      : relativePath + path.sep;
   }
 
   /**
@@ -535,13 +561,10 @@ export class MovieWatcherService {
       const prisma = new PrismaClient();
 
       try {
-        // CORRECTION: Calculer correctement le chemin relatif
-        // filepath = /Users/rusmirsadikovic/Downloads/films/movie.mp4
-        // moviesFolder = /Users/rusmirsadikovic/Downloads/films/
-        // relativeFromMovies = movie.mp4
+        // Calculer correctement le chemin relatif pour la base de données
         const moviesFolder = movieIndexingService.getMoviesFolderAbsolutePath();
         const relativeFromMovies = path.relative(moviesFolder, filepath);
-        const dbFormatPath = `../../Downloads/films/${relativeFromMovies}`;
+        const dbFormatPath = `${this.getMoviesFolderRelativeForDB()}${relativeFromMovies}`;
 
         // Trouver et supprimer le film de la base de données
         const movie = await prisma.movie.findFirst({
@@ -634,7 +657,7 @@ export class MovieWatcherService {
           const moviesFolder =
             movieIndexingService.getMoviesFolderAbsolutePath();
           const relativePath = movie.localPath.replace(
-            "../../Downloads/films/",
+            this.getMoviesFolderRelativeForDB(),
             ""
           );
           const absolutePath = path.join(moviesFolder, relativePath);

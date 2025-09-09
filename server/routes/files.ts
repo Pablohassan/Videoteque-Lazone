@@ -20,8 +20,11 @@ router.get("/download/:filename", optionalAuth, async (req, res) => {
       });
     }
 
-    // Vérifier que le fichier existe avec fs-extra
+    // Résoudre et vérifier le chemin du fichier
+    let resolvedPath = filePath;
+
     try {
+      // Essayer d'abord le chemin tel quel
       const stats = await fs.stat(filePath);
       if (!stats.isFile()) {
         return res.status(400).json({
@@ -30,21 +33,51 @@ router.get("/download/:filename", optionalAuth, async (req, res) => {
         });
       }
     } catch (error) {
-      return res.status(404).json({
-        success: false,
-        message: "Fichier non trouvé",
-      });
+      console.warn(`⚠️ Chemin direct inaccessible: ${filePath}`, error);
+
+      // Essayer de résoudre le chemin relatif si c'est un chemin relatif
+      if (!path.isAbsolute(filePath)) {
+        resolvedPath = path.resolve(process.cwd(), filePath);
+        console.log(
+          `🔄 Tentative de résolution: ${filePath} → ${resolvedPath}`
+        );
+
+        try {
+          const stats = await fs.stat(resolvedPath);
+          if (!stats.isFile()) {
+            return res.status(400).json({
+              success: false,
+              message: "Le chemin spécifié n'est pas un fichier",
+            });
+          }
+        } catch (resolveError) {
+          console.error(
+            `❌ Chemin résolu également inaccessible: ${resolvedPath}`,
+            resolveError
+          );
+          return res.status(404).json({
+            success: false,
+            message: "Fichier non trouvé - chemin inaccessible",
+          });
+        }
+      } else {
+        console.error(`❌ Chemin absolu inaccessible: ${filePath}`, error);
+        return res.status(404).json({
+          success: false,
+          message: "Fichier non trouvé",
+        });
+      }
     }
 
     // Détecter automatiquement le type MIME
-    const detectedMime = mime.lookup(filePath);
+    const detectedMime = mime.lookup(resolvedPath);
     const mimeType =
       typeof detectedMime === "string"
         ? detectedMime
         : "application/octet-stream";
 
     // Extraire le nom réel du fichier depuis le chemin
-    const realFilename = path.basename(filePath);
+    const realFilename = path.basename(resolvedPath);
 
     // Définir les headers pour le téléchargement avec le nom réel du fichier
     res.setHeader(
@@ -52,10 +85,10 @@ router.get("/download/:filename", optionalAuth, async (req, res) => {
       `attachment; filename="${realFilename}"`
     );
     res.setHeader("Content-Type", mimeType);
-    res.setHeader("Content-Length", (await fs.stat(filePath)).size);
+    res.setHeader("Content-Length", (await fs.stat(resolvedPath)).size);
 
     // Créer le stream de lecture et l'envoyer
-    const fileStream = createReadStream(filePath);
+    const fileStream = createReadStream(resolvedPath);
     fileStream.pipe(res);
 
     fileStream.on("error", (error) => {
@@ -91,20 +124,49 @@ router.get("/stream/:filename", optionalAuth, async (req, res) => {
       });
     }
 
-    // Vérifier que le fichier existe avec fs-extra
+    // Résoudre et vérifier le chemin du fichier
+    let resolvedPath = filePath;
     let stats;
+
     try {
+      // Essayer d'abord le chemin tel quel
       stats = await fs.stat(filePath);
-      if (!stats.isFile()) {
-        return res.status(400).json({
+    } catch (error) {
+      console.warn(`⚠️ Chemin direct inaccessible: ${filePath}`, error);
+
+      // Essayer de résoudre le chemin relatif si c'est un chemin relatif
+      if (!path.isAbsolute(filePath)) {
+        resolvedPath = path.resolve(process.cwd(), filePath);
+        console.log(
+          `🔄 Tentative de résolution: ${filePath} → ${resolvedPath}`
+        );
+
+        try {
+          stats = await fs.stat(resolvedPath);
+        } catch (resolveError) {
+          console.error(
+            `❌ Chemin résolu également inaccessible: ${resolvedPath}`,
+            resolveError
+          );
+          return res.status(404).json({
+            success: false,
+            message: "Fichier non trouvé - chemin inaccessible",
+          });
+        }
+      } else {
+        console.error(`❌ Chemin absolu inaccessible: ${filePath}`, error);
+        return res.status(404).json({
           success: false,
-          message: "Le chemin spécifié n'est pas un fichier",
+          message: "Fichier non trouvé",
         });
       }
-    } catch (error) {
-      return res.status(404).json({
+    }
+
+    // Vérifier que c'est bien un fichier
+    if (!stats.isFile()) {
+      return res.status(400).json({
         success: false,
-        message: "Fichier non trouvé",
+        message: "Le chemin spécifié n'est pas un fichier",
       });
     }
 
@@ -112,12 +174,12 @@ router.get("/stream/:filename", optionalAuth, async (req, res) => {
     const range = req.headers.range;
 
     // Détecter automatiquement le type MIME
-    const detectedMime = mime.lookup(filePath);
+    const detectedMime = mime.lookup(resolvedPath);
     const mimeType =
       typeof detectedMime === "string" ? detectedMime : "video/mp4";
 
     // Extraire le nom réel du fichier depuis le chemin pour les logs
-    const realFilename = path.basename(filePath);
+    const realFilename = path.basename(resolvedPath);
 
     if (range) {
       // Support des range headers pour la lecture partielle
@@ -146,7 +208,7 @@ router.get("/stream/:filename", optionalAuth, async (req, res) => {
         "Access-Control-Allow-Headers": "Range",
       });
 
-      const fileStream = createReadStream(filePath, { start, end });
+      const fileStream = createReadStream(resolvedPath, { start, end });
 
       // Gestion des erreurs du stream
       fileStream.on("error", (error) => {
@@ -178,7 +240,7 @@ router.get("/stream/:filename", optionalAuth, async (req, res) => {
         "Access-Control-Allow-Headers": "Range",
       });
 
-      const fileStream = createReadStream(filePath);
+      const fileStream = createReadStream(resolvedPath);
 
       // Gestion des erreurs du stream
       fileStream.on("error", (error) => {
@@ -236,25 +298,54 @@ router.head("/stream/:filename", optionalAuth, async (req, res) => {
       });
     }
 
-    // Vérifier que le fichier existe
+    // Résoudre et vérifier le chemin du fichier
+    let resolvedPath = filePath;
     let stats;
+
     try {
+      // Essayer d'abord le chemin tel quel
       stats = await fs.stat(filePath);
-      if (!stats.isFile()) {
-        return res.status(400).json({
+    } catch (error) {
+      console.warn(`⚠️ Chemin direct inaccessible: ${filePath}`, error);
+
+      // Essayer de résoudre le chemin relatif si c'est un chemin relatif
+      if (!path.isAbsolute(filePath)) {
+        resolvedPath = path.resolve(process.cwd(), filePath);
+        console.log(
+          `🔄 Tentative de résolution: ${filePath} → ${resolvedPath}`
+        );
+
+        try {
+          stats = await fs.stat(resolvedPath);
+        } catch (resolveError) {
+          console.error(
+            `❌ Chemin résolu également inaccessible: ${resolvedPath}`,
+            resolveError
+          );
+          return res.status(404).json({
+            success: false,
+            message: "Fichier non trouvé - chemin inaccessible",
+          });
+        }
+      } else {
+        console.error(`❌ Chemin absolu inaccessible: ${filePath}`, error);
+        return res.status(404).json({
           success: false,
-          message: "Le chemin spécifié n'est pas un fichier",
+          message: "Fichier non trouvé",
         });
       }
-    } catch (error) {
-      return res.status(404).json({
+    }
+
+    // Vérifier que c'est bien un fichier
+    if (!stats.isFile()) {
+      return res.status(400).json({
         success: false,
-        message: "Fichier non trouvé",
+        message: "Le chemin spécifié n'est pas un fichier",
       });
     }
 
     const fileSize = stats.size;
-    const detectedMime = mime.lookup(filePath);
+    const detectedMime = mime.lookup(resolvedPath);
     const mimeType =
       typeof detectedMime === "string" ? detectedMime : "video/mp4";
 

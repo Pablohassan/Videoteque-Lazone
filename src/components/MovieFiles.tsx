@@ -135,10 +135,11 @@ export function MovieFiles({ movieId }: MovieFilesProps) {
 
     const handlePlay = (filePath: string, filename: string, displayName: string) => {
         try {
-            // Utiliser l'URL dynamique du backend via le service API
+            // Utiliser la nouvelle route sécurisée par ID de film
             const baseURL = apiService.getBaseURL();
-            const videoUrl = `${baseURL}/api/files/stream/${encodeURIComponent(displayName)}?path=${encodeURIComponent(filePath)}`;
-            console.log('🎬 URL de streaming:', videoUrl);
+            const videoUrl = `${baseURL}/api/movies/${movieId}/stream`;
+            console.log('🎬 URL de streaming sécurisée:', videoUrl);
+            console.log('📁 Chemin original:', filePath);
             setCurrentVideo({ url: videoUrl, title: displayName });
             setVideoPlayerOpen(true);
         } catch (error) {

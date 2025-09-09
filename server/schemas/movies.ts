@@ -136,6 +136,17 @@ export const WatcherOptionsSchema = z.object({
     .default(2000),
   recursive: z.boolean().default(true),
   ignoreInitial: z.boolean().default(true),
+  ignored: z.array(z.union([z.string(), z.instanceof(RegExp)])).default([
+    /(^|[/\\])\../, // Fichiers/dossiers cachés (.DS_Store, .tmp, etc.)
+    /.*\.tmp$/, // Fichiers temporaires
+    /.*\.temp$/,
+    /.*\.swp$/, // Fichiers vim
+    /.*~$/, // Fichiers backup
+    /Thumbs\.db$/, // Windows thumbnails
+    /Desktop\.ini$/, // Windows metadata
+    /node_modules/, // Dossiers de dépendances
+    /\.git/, // Dossiers git
+  ]),
   awaitWriteFinish: z
     .object({
       stabilityThreshold: z.number().int().min(100).max(10000).default(1000),

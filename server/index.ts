@@ -443,19 +443,8 @@ const createServer = async (): Promise<void> => {
     });
   });
 
-  // Static file serving for production
-  if (isProduction) {
-    app.use(
-      express.static(path.join(__dirname, "../client"), {
-        maxAge: "1d",
-        etag: true,
-      })
-    );
-
-    app.get("*", (req: Request, res: Response): void => {
-      res.sendFile(path.join(__dirname, "../client/index.html"));
-    });
-  }
+  // Simple static file serving
+  app.use(express.static(path.join(__dirname, "../client")));
 
   // Graceful server startup
   const server = app.listen(port, () => {
