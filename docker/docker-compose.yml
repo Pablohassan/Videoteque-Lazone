@@ -9,7 +9,7 @@ services:
       - ../.env
       - ./.env.docker
     volumes:
-      - ./movies:/movies
+      - /data/films:/movies
     restart: unless-stopped
     labels:
       - "traefik.enable=true"
