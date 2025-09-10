@@ -15,7 +15,6 @@
 
 - **Serveurs** : VPS, AWS, DigitalOcean, Heroku
 - **Base de données** : PostgreSQL managé ou auto-hébergé
-- **Cache** : Redis (optionnel)
 - **CDN** : Cloudflare, AWS CloudFront
 - **Monitoring** : Logs, métriques, alertes
 
@@ -96,17 +95,8 @@ services:
       - "5432:5432"
     restart: unless-stopped
 
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    restart: unless-stopped
-
 volumes:
   postgres_data:
-  redis_data:
 ```
 
 ### Déploiement Docker
@@ -702,27 +692,6 @@ nload
 ```
 
 ## 📈 Optimisation des Performances
-
-### Cache Redis (Optionnel)
-
-```typescript
-// Configuration Redis
-import { createClient } from "redis";
-
-const redisClient = createClient({
-  url: process.env.REDIS_URL || "redis://localhost:6379",
-});
-
-// Cache des films populaires
-export const cacheMovies = async (key: string, data: any, ttl = 3600) => {
-  await redisClient.setEx(key, ttl, JSON.stringify(data));
-};
-
-export const getCachedMovies = async (key: string) => {
-  const data = await redisClient.get(key);
-  return data ? JSON.parse(data) : null;
-};
-```
 
 ### CDN pour les Images
 

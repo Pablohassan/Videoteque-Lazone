@@ -55,21 +55,8 @@ services:
       timeout: 5s
       retries: 5
 
-  # Redis pour le cache (optionnel mais recommandé)
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379" # À retirer en production pour la sécurité
-    volumes:
-      - redis_data:/data
-    networks:
-      - internal-network
-    restart: unless-stopped
-    command: redis-server --appendonly yes
-
 volumes:
   postgres_data:
-  redis_data:
 
 networks:
   traefik-network:
