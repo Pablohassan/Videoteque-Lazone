@@ -1,0 +1,50 @@
+version: "3.8"
+
+services:
+  # Application principale (Full-stack)
+  videotek:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        VITE_TMDB_API_KEY: ${VITE_TMDB_API_KEY:-6eaafd7bab593e5cb73121fedf19a390}
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:3001/api}
+    container_name: videotek-app
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - DATABASE_URL=${DATABASE_URL}
+      - DIRECT_URL=${DIRECT_URL}
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - JWT_SECRET=${JWT_SECRET:-your-secret-key-change-in-production}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-7d}
+      - JWT_ISSUER=${JWT_ISSUER:-cine-scan-connect}
+      - JWT_AUDIENCE=${JWT_AUDIENCE:-cine-scan-users}
+      - TMDB_BASE_URL=${TMDB_BASE_URL:-https://api.themoviedb.org/3}
+      - MOVIES_FOLDER_PATH=/app/movies
+      - TMDB_API_KEY=${TMDB_API_KEY}
+      - CLIENT_URL=${CLIENT_URL}
+
+    volumes:
+      # Volume pour les films (variable d'environnement obligatoire)
+      #- /Users/rusmirsadikovic/Downloads/films:/app/movies:ro
+      - /Users/rusmirsadikovic/Downloads/films:/app/movies:ro
+      # Volume pour les logs
+      - ./logs:/app/logs
+    networks:
+      - videotek-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://${CLIENT_URL}/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  videotek-network:
+    driver: bridge

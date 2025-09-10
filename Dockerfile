@@ -52,10 +52,11 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/server ./server
 # Copy Prisma client from builder stage ----
 
-# suggeré pour le multistage build de copier les fichiers prisma pour éviter les erreurs de prisma
+# je n'ai pas pu mmonter le conainter sans sinon erreurs de prisma et exit 
 
-#COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-#COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+
 
 # Create necessary directories
 RUN mkdir -p /app/movies /app/logs && \

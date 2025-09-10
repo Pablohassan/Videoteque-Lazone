@@ -202,10 +202,17 @@ const performSmartIndexing = async (): Promise<void> => {
     let errorCount = 0;
 
     for (const relativePath of currentFiles) {
-      // relativePath est déjà un chemin absolu, pas besoin de le joindre avec moviesFolder
-      const fullPath = path.isAbsolute(relativePath)
-        ? relativePath
-        : path.join(moviesFolder, relativePath);
+      // Éviter la duplication du chemin dans Docker
+      let fullPath;
+      if (relativePath.startsWith(moviesFolder)) {
+        // Le chemin relatif contient déjà le chemin complet (Docker)
+        fullPath = relativePath;
+        console.log(`🐳 Docker détecté - chemin déjà complet: ${relativePath}`);
+      } else {
+        // Chemin relatif normal
+        fullPath = path.join(moviesFolder, relativePath);
+      }
+
       try {
         console.log(`🔄 Indexation de: ${path.basename(relativePath)}`);
         const result = await movieIndexingService.indexSingleFile(fullPath);
