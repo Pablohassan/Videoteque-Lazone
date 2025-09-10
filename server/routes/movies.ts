@@ -189,7 +189,23 @@ router.get(
 
       const filePath = movie.localPath;
       const range = req.headers.range;
-      console.log(`🎬 Streaming par ID: ${movieId} -> ${filePath}`);
+
+      // Transformation Docker : convertir les chemins absolus de l'hôte vers les chemins du conteneur
+      let processedFilePath = filePath;
+      if (
+        filePath &&
+        filePath.includes("/Users/rusmirsadikovic/Downloads/films/")
+      ) {
+        processedFilePath = filePath.replace(
+          "/Users/rusmirsadikovic/Downloads/films/",
+          "/app/movies/"
+        );
+        console.log(
+          `🔄 Transformation Docker: ${filePath} → ${processedFilePath}`
+        );
+      }
+
+      console.log(`🎬 Streaming par ID: ${movieId} -> ${processedFilePath}`);
       console.log(`🎬 Range header:`, range);
 
       // Copier la logique de streaming depuis files.ts
@@ -200,20 +216,23 @@ router.get(
       const mime = (await import("mime-types")).default;
 
       // Résoudre et vérifier le chemin du fichier
-      let resolvedPath = filePath;
+      let resolvedPath = processedFilePath;
       let stats;
 
       try {
         // Essayer d'abord le chemin tel quel
-        stats = await fs.stat(filePath);
+        stats = await fs.stat(processedFilePath);
       } catch (error) {
-        console.warn(`⚠️ Chemin direct inaccessible: ${filePath}`, error);
+        console.warn(
+          `⚠️ Chemin direct inaccessible: ${processedFilePath}`,
+          error
+        );
 
         // Essayer de résoudre le chemin relatif si c'est un chemin relatif
-        if (!path.isAbsolute(filePath)) {
-          resolvedPath = path.resolve(process.cwd(), filePath);
+        if (!path.isAbsolute(processedFilePath)) {
+          resolvedPath = path.resolve(process.cwd(), processedFilePath);
           console.log(
-            `🔄 Tentative de résolution: ${filePath} → ${resolvedPath}`
+            `🔄 Tentative de résolution: ${processedFilePath} → ${resolvedPath}`
           );
 
           try {
@@ -229,7 +248,10 @@ router.get(
             });
           }
         } else {
-          console.error(`❌ Chemin absolu inaccessible: ${filePath}`, error);
+          console.error(
+            `❌ Chemin absolu inaccessible: ${processedFilePath}`,
+            error
+          );
           return res.status(404).json({
             success: false,
             message: "Fichier non trouvé",

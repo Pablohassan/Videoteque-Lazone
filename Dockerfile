@@ -57,6 +57,7 @@ COPY --from=builder /app/server ./server
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 
+
 # Create necessary directories
 RUN mkdir -p /app/movies /app/logs && \
     chown -R appuser:appuser /app
