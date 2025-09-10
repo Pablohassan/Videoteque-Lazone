@@ -132,7 +132,12 @@ export class EmailService {
     loginUrl?: string
   ): string {
     const loginLink =
-      loginUrl || `${process.env.FRONTEND_URL || "http://localhost:5173"}`;
+      loginUrl ||
+      `${
+        process.env.FRONTEND_URL ||
+        process.env.CLIENT_URL ||
+        "http://localhost:5173"
+      }`;
 
     return `
       <!DOCTYPE html>
@@ -361,7 +366,12 @@ export class EmailService {
     loginUrl?: string
   ): string {
     const loginLink =
-      loginUrl || `${process.env.FRONTEND_URL || "http://localhost:5173"}`;
+      loginUrl ||
+      `${
+        process.env.FRONTEND_URL ||
+        process.env.CLIENT_URL ||
+        "http://localhost:5173"
+      }`;
 
     return `
 🎬 Bienvenue sur CineScan Connect !

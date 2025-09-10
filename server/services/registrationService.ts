@@ -461,9 +461,11 @@ export class RegistrationService {
       "id" | "email" | "name" | "requestedAt"
     >
   ): string {
-    const adminUrl = `${
-      process.env.FRONTEND_URL || "http://localhost:5173"
-    }/admin`;
+    const frontendUrl =
+      process.env.FRONTEND_URL ||
+      process.env.CLIENT_URL ||
+      "http://localhost:5173";
+    const adminUrl = `${frontendUrl}/admin`;
 
     return `
       <!DOCTYPE html>

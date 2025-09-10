@@ -21,51 +21,21 @@ const SUPPORTED_VIDEO_EXTENSIONS_ARRAY = [
   ".m4v",
 ];
 
-// Fonction de validation sécurisée pour les chemins relatifs
-const isSecureRelativePath = (inputPath: string): boolean => {
-  // Le chemin doit être relatif (pas absolu)
-  if (inputPath.startsWith("/")) return false;
-
-  // Résoudre le chemin par rapport au répertoire de travail
-  const resolvedPath = path.resolve(process.cwd(), inputPath);
-  const cwd = process.cwd();
-  const homeDir = os.homedir();
-
-  console.log(`🔍 [Validation] Chemin résolu: ${resolvedPath}`);
-
-  // Vérifier que le chemin résolu reste dans le répertoire du projet
-  // ou dans un répertoire autorisé (comme Downloads, Documents, etc.)
-  const allowedPrefixes = [
-    cwd, // Le répertoire du projet
-    path.join(homeDir, "Downloads"),
-    path.join(homeDir, "Documents"),
-    path.join(homeDir, "Movies"),
-    path.join(homeDir, "Videos"),
-    path.join(homeDir, "Desktop"),
-    path.join(homeDir, "Pictures"),
-  ];
-
-  const isAllowed = allowedPrefixes.some((prefix) => {
-    const allowed = resolvedPath.startsWith(prefix);
-
-    return allowed;
-  });
-
-  return isAllowed;
+// Fonction simplifiée de validation pour les chemins (production-friendly)
+const isValidPath = (inputPath: string): boolean => {
+  // En production, on accepte les chemins relatifs simples
+  // La sécurité est gérée par Docker et les variables d'environnement
+  if (!inputPath || inputPath.trim() === "") return false;
+  if (inputPath.includes("..")) return false; // Pas de navigation vers le parent
+  if (/[<>:"|?*]/.test(inputPath)) return false; // Pas de caractères dangereux
+  return true;
 };
 
 // Schéma pour valider un chemin de dossier
 export const FolderPathSchema = z
   .string()
   .min(1, "Le chemin du dossier ne peut pas être vide")
-  .refine(
-    (path) => !path.startsWith("/"),
-    "Le chemin doit être relatif pour des raisons de sécurité"
-  )
-  .refine(
-    isSecureRelativePath,
-    "Le chemin résolu doit rester dans un répertoire autorisé"
-  )
+  .refine(isValidPath, "Le chemin contient des caractères invalides")
   .refine(
     (path) => path.length <= 260,
     "Le chemin du dossier est trop long (maximum 260 caractères)"

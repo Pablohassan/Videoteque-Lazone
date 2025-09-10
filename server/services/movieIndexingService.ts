@@ -45,42 +45,33 @@ export class MovieIndexingService {
   private tmdbClient: ReturnType<typeof createTMDBClient>;
 
   constructor(moviesFolderPath?: string) {
+    // Priorité : paramètre > variable d'environnement > erreur si rien
     const folderPath = moviesFolderPath || process.env.MOVIES_FOLDER_PATH;
+
+    if (!folderPath) {
+      throw new Error(
+        "❌ MOVIES_FOLDER_PATH n'est pas défini !\n" +
+          "Définissez cette variable d'environnement avec le chemin du dossier de films.\n" +
+          "Exemple : MOVIES_FOLDER_PATH=/app/movies\n" +
+          "Ou dans Docker : MOVIES_FOLDER_PATH=/movies (si volume monté sur /movies)"
+      );
+    }
 
     console.log(`🎬 [MovieIndexingService] Initialisation avec: ${folderPath}`);
     console.log(
       `🔧 [MovieIndexingService] MOVIES_FOLDER_PATH: ${
-        process.env.MOVIES_FOLDER_PATH || "non définie"
+        process.env.MOVIES_FOLDER_PATH || "non défini"
       }`
     );
-    console.log(
-      `🏠 [MovieIndexingService] HOME: ${process.env.HOME || "non définie"}`
-    );
-    console.log(`📂 [MovieIndexingService] CWD: ${process.cwd()}`);
 
-    // Résoudre le ~ en chemin absolu
-    let resolvedPath = folderPath?.replace(/^~/, process.env.HOME || "");
-    console.log(
-      `🔍 [MovieIndexingService] Après résolution ~: ${resolvedPath}`
-    );
-
-    // Convertir les chemins absolus en chemins relatifs par rapport au répertoire de travail
-    if (path.isAbsolute(resolvedPath ?? "")) {
-      const originalPath = resolvedPath;
-      resolvedPath = path.relative(process.cwd(), resolvedPath ?? "");
-      console.log(
-        `🔄 [MovieIndexingService] Chemin absolu converti: ${originalPath} → ${resolvedPath}`
-      );
-    } else {
-      console.log(
-        `✅ [MovieIndexingService] Chemin déjà relatif: ${resolvedPath}`
-      );
-    }
-
-    this.moviesFolderPath = resolvedPath ?? "";
+    // En production/Docker, utiliser le chemin tel quel (il est déjà absolu dans le conteneur)
+    this.moviesFolderPath = folderPath;
     console.log(
       `📁 [MovieIndexingService] Chemin final: ${this.moviesFolderPath}`
     );
+
+    // Vérifier que le dossier existe et est accessible
+    this.ensureMoviesFolderExists();
 
     // Initialiser le client TMDB
     this.tmdbClient = createTMDBClient();
@@ -687,44 +678,47 @@ export class MovieIndexingService {
   }
 
   /**
-   * Obtenir le chemin relatif du dossier de films (pour la validation)
+   * Obtenir le chemin du dossier de films (pour Docker, c'est déjà un chemin absolu)
    */
   getMoviesFolderPath(): string {
-    // Re-valider le chemin au moment de l'appel au cas où les variables d'environnement ont changé
-    this.ensureValidPath();
     return this.moviesFolderPath;
   }
 
   /**
-   * Obtenir le chemin absolu du dossier de films (pour l'accès aux fichiers)
+   * Obtenir le chemin absolu du dossier de films (pour Docker, c'est le même chemin)
    */
   getMoviesFolderAbsolutePath(): string {
-    // Re-valider le chemin au moment de l'appel au cas où les variables d'environnement ont changé
-    this.ensureValidPath();
-    return path.resolve(process.cwd(), this.moviesFolderPath);
+    return this.moviesFolderPath;
   }
 
   /**
-   * S'assurer que le chemin est valide et converti correctement
+   * Vérifier que le dossier des films existe et est accessible
    */
-  private ensureValidPath(): void {
-    const currentEnvPath = process.env.MOVIES_FOLDER_PATH;
-    const currentHome = process.env.HOME;
+  private ensureMoviesFolderExists(): void {
+    try {
+      if (!fs.existsSync(this.moviesFolderPath)) {
+        console.warn(
+          `⚠️ Dossier des films non trouvé: ${this.moviesFolderPath}`
+        );
+        // En production, on ne crée pas le dossier automatiquement
+        return;
+      }
 
-    // Si les variables d'environnement ont changé depuis l'initialisation, re-calculer le chemin
-    const folderPath = currentEnvPath || "./movies";
-    let resolvedPath = folderPath.replace(/^~/, currentHome || "");
-
-    if (path.isAbsolute(resolvedPath)) {
-      resolvedPath = path.relative(process.cwd(), resolvedPath);
-    }
-
-    // Si le chemin a changé, mettre à jour
-    if (resolvedPath !== this.moviesFolderPath) {
-      console.log(
-        `🔄 [MovieIndexingService] Reconfiguration du chemin: ${this.moviesFolderPath} → ${resolvedPath}`
+      const stats = fs.statSync(this.moviesFolderPath);
+      if (!stats.isDirectory()) {
+        console.error(
+          `❌ Le chemin n'est pas un dossier: ${this.moviesFolderPath}`
+        );
+      } else {
+        console.log(
+          `✅ Dossier des films accessible: ${this.moviesFolderPath}`
+        );
+      }
+    } catch (error) {
+      console.error(
+        `❌ Erreur d'accès au dossier des films: ${this.moviesFolderPath}`,
+        error
       );
-      this.moviesFolderPath = resolvedPath;
     }
   }
 }

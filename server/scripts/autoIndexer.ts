@@ -44,8 +44,17 @@ class MovieAutoIndexer {
   private tmdbClient: ReturnType<typeof createTMDBClient>;
 
   constructor(moviesFolderPath?: string) {
-    const folderPath =
-      moviesFolderPath || process.env.MOVIES_FOLDER_PATH || "./movies";
+    // Priorité : paramètre > variable d'environnement > erreur si rien
+    const folderPath = moviesFolderPath || process.env.MOVIES_FOLDER_PATH;
+
+    if (!folderPath) {
+      throw new Error(
+        "❌ MOVIES_FOLDER_PATH n'est pas défini !\n" +
+          "Définissez cette variable d'environnement avec le chemin du dossier de films.\n" +
+          "Exemple : MOVIES_FOLDER_PATH=/movies"
+      );
+    }
+
     // Résoudre le ~ en chemin absolu
     this.moviesFolderPath = folderPath.replace(/^~/, process.env.HOME || "");
     // Initialiser le client TMDB après chargement des variables d'environnement

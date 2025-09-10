@@ -37,9 +37,9 @@ const synchronizeIndexState = async (): Promise<Set<string>> => {
             ".m4v",
           ].includes(ext)
         ) {
-          // Utiliser le même format que la DB : ../../Downloads/films/...
+          // Utiliser le format compatible Docker : /movies/...
           const relativeFromMovies = path.relative(moviesFolder, fullPath);
-          const dbFormatPath = `../../Downloads/films/${relativeFromMovies}`;
+          const dbFormatPath = path.join(moviesFolder, relativeFromMovies);
           currentFiles.add(dbFormatPath);
         }
       }

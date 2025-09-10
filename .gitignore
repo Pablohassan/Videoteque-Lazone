@@ -31,6 +31,9 @@ dist-ssr
 secrets.json
 credentials.json
 
+# Application state files (environment-specific)
+.movie-index-state.json
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

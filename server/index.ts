@@ -94,9 +94,9 @@ const performSmartIndexing = async (): Promise<void> => {
               ".m4v",
             ].includes(ext)
           ) {
-            // Utiliser le même format que la DB : ../../Downloads/films/...
+            // Utiliser le format compatible Docker : /movies/...
             const relativeFromMovies = path.relative(moviesFolder, fullPath);
-            const dbFormatPath = `../../Downloads/films/${relativeFromMovies}`;
+            const dbFormatPath = path.join(moviesFolder, relativeFromMovies);
             currentFiles.add(dbFormatPath);
           }
         }
@@ -238,10 +238,10 @@ const performSmartIndexing = async (): Promise<void> => {
         let cleanedCount = 0;
         for (const deletedFile of deletedFiles) {
           // Vérifier que le fichier n'existe vraiment plus
-          const relativePath = deletedFile.replace(
-            "../../Downloads/films/",
-            ""
-          );
+          // Les chemins sont maintenant au format /movies/..., on extrait la partie relative
+          const relativePath = deletedFile
+            .replace(moviesFolder, "")
+            .replace(/^\/+/, "");
           const absolutePath = path.join(moviesFolder, relativePath);
           const fileStillExists = fs.existsSync(absolutePath);
 
@@ -338,14 +338,20 @@ const createServer = async (): Promise<void> => {
     })
   );
 
-  // CORS configuration - Support multiple development ports
+  // CORS configuration - Support multiple origins
   const allowedOrigins = [
-    process.env.CLIENT_URL ?? "http://localhost:5173",
-    "http://localhost:5174",
-    "http://localhost:5175",
-    "http://localhost:5176",
-    "http://localhost:5177",
-  ];
+    process.env.CLIENT_URL, // URL principale du client (production)
+    // URLs de développement (seulement si en développement)
+    ...(isProduction
+      ? []
+      : [
+          "http://localhost:5173",
+          "http://localhost:5174",
+          "http://localhost:5175",
+          "http://localhost:5176",
+          "http://localhost:5177",
+        ]),
+  ].filter(Boolean); // Supprimer les valeurs undefined
 
   app.use(
     cors({
@@ -448,7 +454,9 @@ const createServer = async (): Promise<void> => {
 
   // Graceful server startup
   const server = app.listen(port, () => {
-    console.log(`🚀 Server started on http://localhost:${port}`);
+    const protocol = isProduction ? "https" : "http";
+    const host = isProduction ? process.env.HOST || "0.0.0.0" : "localhost";
+    console.log(`🚀 Server started on ${protocol}://${host}:${port}`);
     console.log(`📝 Environment: ${NODE_ENV}`);
     console.log(
       `🔒 Security: ${isProduction ? "Production mode" : "Development mode"}`

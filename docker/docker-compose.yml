@@ -1,25 +1,81 @@
-name: videoclub
+name: cine-scan-connect
 
 services:
+<<<<<<< HEAD
   videoclub:
     image: dambuty/lazone-videotek:latest
+=======
+  # Application principale
+  app:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+>>>>>>> cb4f391 (correction path et indexer')
     ports:
       - "3001:3001"
     env_file:
       - ../.env
-      - ./.env.docker
     volumes:
-      - /data/films:/movies
+      - /data/movies:/movies:ro  # Montage en lecture seule des films
+      - ./logs:/app/logs         # Montage des logs
+    depends_on:
+      db:
+        condition: service_healthy
     restart: unless-stopped
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.videoclub.rule=Host(`films.lazone.at`)"
-      - "traefik.http.routers.videoclub.entrypoints=websecure"
-      - "traefik.http.routers.videoclub.tls.certresolver=letsencrypt"
-      - "traefik.http.services.videoclub.loadbalancer.server.port=3001"
+      - "traefik.http.routers.cine-scan.rule=Host(`films.votre-domaine.com`)"
+      - "traefik.http.routers.cine-scan.entrypoints=websecure"
+      - "traefik.http.routers.cine-scan.tls.certresolver=letsencrypt"
+      - "traefik.http.services.cine-scan.loadbalancer.server.port=3001"
     networks:
       - traefik-network
+      - internal-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Base de données PostgreSQL
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: cinescan
+      POSTGRES_USER: cinescan_user
+      POSTGRES_PASSWORD: change_this_password_in_production
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    ports:
+      - "5432:5432"  # À retirer en production pour la sécurité
+    networks:
+      - internal-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cinescan_user -d cinescan"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis pour le cache (optionnel mais recommandé)
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"  # À retirer en production pour la sécurité
+    volumes:
+      - redis_data:/data
+    networks:
+      - internal-network
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+
+volumes:
+  postgres_data:
+  redis_data:
 
 networks:
   traefik-network:
     external: true
+  internal-network:
+    driver: bridge

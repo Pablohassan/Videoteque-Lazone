@@ -382,16 +382,15 @@ export class MovieWatcherService {
   }
 
   /**
-   * Obtenir le chemin relatif du dossier de films pour la base de données
-   * @returns Le chemin relatif formaté pour la DB (ex: "../../Downloads/films/")
+   * Obtenir le chemin du dossier de films pour la base de données
+   * @returns Le chemin formaté pour la DB (ex: "/movies/")
    */
   private getMoviesFolderRelativeForDB(): string {
     const absolutePath = movieIndexingService.getMoviesFolderAbsolutePath();
-    const relativePath = path.relative(process.cwd(), absolutePath);
     // S'assurer qu'il se termine par un slash
-    return relativePath.endsWith(path.sep)
-      ? relativePath
-      : relativePath + path.sep;
+    return absolutePath.endsWith(path.sep)
+      ? absolutePath
+      : absolutePath + path.sep;
   }
 
   /**

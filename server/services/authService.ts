@@ -390,9 +390,11 @@ export class AuthService {
 
     // Générer un token de réinitialisation sécurisé
     const resetToken = this.generateResetToken(user.id);
-    const resetUrl = `${
-      process.env.FRONTEND_URL || "http://localhost:5173"
-    }/reset-password?token=${resetToken}`;
+    const frontendUrl =
+      process.env.FRONTEND_URL ||
+      process.env.CLIENT_URL ||
+      "http://localhost:5173";
+    const resetUrl = `${frontendUrl}/reset-password?token=${resetToken}`;
 
     // Envoyer l'email de réinitialisation
     setImmediate(async () => {
