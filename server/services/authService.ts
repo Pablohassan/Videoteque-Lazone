@@ -291,7 +291,6 @@ export class AuthService {
    */
   async logout(userId: number) {
     // En production, vous pourriez ajouter le token à une liste noire
-    // ou utiliser Redis pour invalider les tokens
 
     // Pour l'instant, nous retournons juste un message de succès
     // La vraie invalidation se fait côté client en supprimant le token

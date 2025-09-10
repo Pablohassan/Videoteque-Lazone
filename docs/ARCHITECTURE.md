@@ -305,8 +305,6 @@ npm start
 ```
 Internet → Load Balancer → Node.js Cluster → PostgreSQL Cluster
                               ↓
-                        Redis Cache
-                              ↓
                         File Storage
 ```
 
