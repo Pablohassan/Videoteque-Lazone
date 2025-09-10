@@ -6,11 +6,19 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+traefik.yml
 
 node_modules
 dist
 dist-ssr
 *.local
+docker-compose.yaml
+.env.docker
+/docker-films
+/docker/traefik/logs
+/docker/traefik/ssl/acme.json
+.movie-index-state.json
+docker/*
 
 # Environment variables (all variations)
 .env

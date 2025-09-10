@@ -202,7 +202,10 @@ const performSmartIndexing = async (): Promise<void> => {
     let errorCount = 0;
 
     for (const relativePath of currentFiles) {
-      const fullPath = path.join(moviesFolder, relativePath);
+      // relativePath est déjà un chemin absolu, pas besoin de le joindre avec moviesFolder
+      const fullPath = path.isAbsolute(relativePath)
+        ? relativePath
+        : path.join(moviesFolder, relativePath);
       try {
         console.log(`🔄 Indexation de: ${path.basename(relativePath)}`);
         const result = await movieIndexingService.indexSingleFile(fullPath);
