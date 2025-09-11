@@ -4,11 +4,11 @@ services:
   # Application principale (Full-stack)
   videotek:
     build:
-      context: ..
+      context: .
       dockerfile: Dockerfile
       args:
-        VITE_TMDB_API_KEY: ${VITE_TMDB_API_KEY:-6eaafd7bab593e5cb73121fedf19a390}
-        VITE_API_URL: ${VITE_API_URL:-http://localhost:3001/api}
+        VITE_TMDB_API_KEY: ${VITE_TMDB_API_KEY}
+        VITE_API_URL: ${VITE_API_URL}
     container_name: videotek-app
     restart: unless-stopped
     ports:
@@ -27,7 +27,7 @@ services:
       - JWT_AUDIENCE=${JWT_AUDIENCE:-cine-scan-users}
       - TMDB_BASE_URL=${TMDB_BASE_URL:-https://api.themoviedb.org/3}
       - MOVIES_FOLDER_PATH=/app/movies
-      - TMDB_API_KEY=${TMDB_API_KEY}
+      - VITE_TMDB_API_KEY=${TMDB_API_KEY}
       - CLIENT_URL=${CLIENT_URL}
 
     volumes:
